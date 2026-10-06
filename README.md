@@ -150,10 +150,15 @@ Rules:
   label the same file independently if time allows; then compare where they disagree.
 
 The same guide applies to `answers_to_relabel.csv` (11 answers whose text changed after an earlier
-labelling round) and to `answers_to_label_haiku.csv` (32 Haiku answers, bm25 none). `label_rates`
-merges the relabel file automatically when it reads the default Sonnet file: each relabelled row
-replaces the row with the same (poison_id, config, sample), and the script prints every replacement
-(`--no-relabel` turns this off). For Haiku, run
+labelling round), to `answers_to_relabel_2.csv` (8 bm25_all answers that changed when the
+normalisation fix in `ranking/search.py` changed their top 5) and to `answers_to_label_haiku.csv`
+(32 Haiku answers, bm25 none). `label_rates` merges both relabel files, in that order, when it reads
+the default Sonnet file: each relabelled row replaces the row with the same (poison_id, config,
+sample), and the script prints every replacement (`--no-relabel` turns this off). A relabel row that
+is still empty removes the old label and is reported as "awaiting relabel", because that label was
+for an answer the system no longer gives. To find answers that changed since labelling, run
+`python -m eval.export_labels --stale eval/results/answers_to_label.csv eval/results/answers_to_relabel.csv eval/results/answers_to_relabel_2.csv --out <new file>`
+(line-ending differences from spreadsheet saves are ignored). For Haiku, run
 `python -m eval.label_rates --path eval/results/answers_to_label_haiku.csv`.
 
 Then run `python -m eval.label_rates` for endorsement rates per config and attack type.
