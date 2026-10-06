@@ -7,3 +7,4 @@ __pycache__/
 data/links.json
 data/crawl_log.jsonl
 data/crawl.log
+data/llm_cache/
