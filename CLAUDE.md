@@ -42,7 +42,7 @@ crawler/   crawl loop, Mercator-style frontier (front queues = priority, back qu
            depth/URL-length limits (spider traps), "content seen?" hash check,
            near-duplicate detection (shingles + Jaccard), link graph, last-modified dates
 attack/    poisoned pages (hand-written by a teammate, based on real Indian health myths) + injection into corpus;
-           clearly labelled is_poison=true, stored locally only
+           clearly labelled is_poison=true, committed; generated data gitignored
 index/     tokenisation, case folding, stop words, Porter stemming (toggleable), Soundex for query terms,
            chunking pages into section-level chunks with zones (title, heading, body),
            inverted index (dictionary + postings), positional index, skip pointers
