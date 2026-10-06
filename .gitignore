@@ -8,3 +8,8 @@ data/links.json
 data/crawl_log.jsonl
 data/crawl.log
 data/llm_cache/
+data/chunks_poisoned.jsonl
+data/links_poisoned.json
+data/poison_manifest.json
+# poisoned pages are synthetic false health claims: kept local only (CLAUDE.md data ethics)
+attack/poison_pages.json

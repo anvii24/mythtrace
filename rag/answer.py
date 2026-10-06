@@ -237,10 +237,11 @@ def main() -> None:
     parser.add_argument("--mode", choices=["bm25", "tfidf"], default="bm25")
     parser.add_argument("--k", type=int, default=K)
     parser.add_argument("--no-defenses", action="store_true")
+    parser.add_argument("--corpus", choices=["clean", "poisoned"], default="clean")
     parser.add_argument("--no-cache", action="store_true", help="always call the API (still writes the cache)")
     args = parser.parse_args()
     out = answer(args.question, use_cache=not args.no_cache,
-                 k=args.k, mode=args.mode, defenses=not args.no_defenses)
+                 k=args.k, mode=args.mode, defenses=not args.no_defenses, corpus=args.corpus)
     print_answer(args.question, out)
 
 

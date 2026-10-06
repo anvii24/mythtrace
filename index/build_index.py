@@ -3,7 +3,10 @@
     python -m index.build_index            # build both indexes, then show a short demo
     python -m index.build_index --no-demo  # build only
 
-Writes data/index/index_stemmed.json and data/index/index_unstemmed.json, each holding:
+    python -m index.build_index --corpus poisoned   # same, over data/chunks_poisoned.jsonl (attack/inject.py)
+
+Writes data/index/index_stemmed.json and data/index/index_unstemmed.json (clean corpus), or
+data/index/index_poisoned_stemmed.json / index_poisoned_unstemmed.json (poisoned corpus), each holding:
   N              - total number of chunks (needed for idf = log(N / df))
   chunk_lengths  - {chunk_id: {"title": n, "heading": n, "body": n, "total": n}} in terms
                    (BM25 length normalisation needs each chunk's length and the average length)
@@ -28,12 +31,22 @@ from collections import defaultdict
 from index.text import preprocess
 
 CHUNKS_PATH = os.path.join("data", "chunks.jsonl")
+# Two corpora that never share files: the clean crawl, and a copy with poisoned chunks injected.
+CHUNKS_PATHS = {"clean": CHUNKS_PATH, "poisoned": os.path.join("data", "chunks_poisoned.jsonl")}
 INDEX_DIR = os.path.join("data", "index")
 ZONES = ("title", "heading", "body")
 
 
-def index_path(stem: bool) -> str:
-    return os.path.join(INDEX_DIR, "index_stemmed.json" if stem else "index_unstemmed.json")
+def chunks_path(corpus: str = "clean") -> str:
+    if corpus not in CHUNKS_PATHS:
+        raise ValueError(f"unknown corpus {corpus!r} (use 'clean' or 'poisoned')")
+    return CHUNKS_PATHS[corpus]
+
+
+def index_path(stem: bool, corpus: str = "clean") -> str:
+    chunks_path(corpus)  # validates the corpus name
+    prefix = "index_" if corpus == "clean" else f"index_{corpus}_"
+    return os.path.join(INDEX_DIR, prefix + ("stemmed.json" if stem else "unstemmed.json"))
 
 
 def load_chunks(path: str = CHUNKS_PATH) -> list[dict]:
@@ -76,8 +89,8 @@ def save_index(idx: dict, path: str) -> None:
         json.dump(idx, f)
 
 
-def load_index(stem: bool = True) -> dict:
-    with open(index_path(stem), encoding="utf-8") as f:
+def load_index(stem: bool = True, corpus: str = "clean") -> dict:
+    with open(index_path(stem, corpus), encoding="utf-8") as f:
         return json.load(f)
 
 
@@ -146,15 +159,16 @@ def demo(idx: dict, chunks_by_id: dict) -> None:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Build stemmed + unstemmed positional inverted indexes.")
     parser.add_argument("--no-demo", action="store_true", help="skip the demo output")
+    parser.add_argument("--corpus", choices=sorted(CHUNKS_PATHS), default="clean")
     args = parser.parse_args()
 
-    chunks = load_chunks()
+    chunks = load_chunks(chunks_path(args.corpus))
     chunks_by_id = {c["chunk_id"]: c for c in chunks}
     for stem in (True, False):
         idx = build_index(chunks, stem=stem)
-        save_index(idx, index_path(stem))
-        size_mb = os.path.getsize(index_path(stem)) / 1e6
-        print(f"wrote {index_path(stem)} ({size_mb:.1f} MB)")
+        path = index_path(stem, args.corpus)
+        save_index(idx, path)
+        print(f"wrote {path} ({os.path.getsize(path) / 1e6:.1f} MB)")
         if not args.no_demo:
             demo(idx, chunks_by_id)
 

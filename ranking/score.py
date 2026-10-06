@@ -33,14 +33,15 @@ import math
 import textwrap
 from collections import Counter
 
-from index.build_index import ZONES, load_chunks, load_index
+from index.build_index import ZONES, chunks_path, load_chunks, load_index
 from index.text import preprocess
 
 ZONE_WEIGHTS = {"title": 3, "heading": 2, "body": 1}
 K1 = 1.2
 B = 0.75
 
-# Loaded lazily and cached, one entry per stem setting (the index files are a few MB each).
+# Loaded lazily and cached, one entry per (corpus, stem) setting (the index files are a few MB each),
+# plus one ("chunks", corpus) entry per corpus holding its chunk records.
 _cache: dict = {}
 
 
@@ -67,20 +68,25 @@ def compute_doc_norms(idx: dict) -> dict:
     return {cid: math.sqrt(s) for cid, s in sq.items()}
 
 
-def get_state(stem: bool) -> dict:
-    """Index + precomputed doc norms + weighted lengths + chunk records, cached per stem setting."""
-    if stem not in _cache:
-        idx = load_index(stem)
+def get_state(stem: bool, corpus: str = "clean") -> dict:
+    """Index + precomputed doc norms + weighted lengths + chunk records, cached per corpus and stem setting.
+
+    The chunk records for the corpus are in st["chunks"] (chunk_id -> record).
+    """
+    key = (corpus, stem)
+    if key not in _cache:
+        idx = load_index(stem, corpus)
         lengths = {cid: weighted_length(l) for cid, l in idx["chunk_lengths"].items()}
-        _cache[stem] = {
+        _cache[key] = {
             "idx": idx,
             "doc_norms": compute_doc_norms(idx),
             "w_lengths": lengths,
             "avg_w_length": sum(lengths.values()) / idx["N"],
         }
-    if "chunks" not in _cache:
-        _cache["chunks"] = {c["chunk_id"]: c for c in load_chunks()}
-    return _cache[stem]
+    if ("chunks", corpus) not in _cache:
+        _cache[("chunks", corpus)] = {c["chunk_id"]: c for c in load_chunks(chunks_path(corpus))}
+    _cache[key].setdefault("chunks", _cache[("chunks", corpus)])
+    return _cache[key]
 
 
 def idf(N: int, df: int) -> float:
@@ -154,9 +160,9 @@ def top_k(acc: dict, k: int) -> list[tuple[float, str]]:
 
 
 def search(query: str, k: int = 5, mode: str = "bm25", defenses: bool = True,
-           stem: bool = True) -> list[dict]:
+           stem: bool = True, corpus: str = "clean") -> list[dict]:
     """Raw relevance only (no g(d)); `defenses` is ignored. The shared retriever is ranking.search.search."""
-    st = get_state(stem)
+    st = get_state(stem, corpus)
     terms = preprocess(query, stem=stem)
     if mode == "bm25":
         acc = score_bm25(terms, st)
@@ -165,7 +171,7 @@ def search(query: str, k: int = 5, mode: str = "bm25", defenses: bool = True,
     else:
         raise ValueError(f"unknown mode {mode!r} (use 'bm25' or 'tfidf')")
 
-    chunks = _cache["chunks"]
+    chunks = st["chunks"]
     results = []
     for score, cid in top_k(acc, k):
         c = chunks[cid]

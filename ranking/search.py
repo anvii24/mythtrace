@@ -3,6 +3,10 @@
     python -m ranking.search "symptoms of type 2 diabetes"                  # defenses on, BM25
     python -m ranking.search "symptoms of type 2 diabetes" --no-defenses
     python -m ranking.search "how to treat asthma" --mode tfidf --alpha 0.5
+    python -m ranking.search "treatment for dengue fever" --corpus poisoned --no-defenses
+
+corpus="clean" searches the crawl; corpus="poisoned" searches the copy with attack pages injected
+(attack/inject.py). Each has its own chunks file, index and link graph.
 
 Net score (IIR ch. 7, "static quality scores"):
     net(q, d) = relevance(q, d) + alpha * g(d)
@@ -25,16 +29,16 @@ import textwrap
 
 from index.text import preprocess
 from ranking import quality
-from ranking.score import _cache as score_cache, get_state, score_bm25, score_tfidf, top_k
+from ranking.score import get_state, score_bm25, score_tfidf, top_k
 
 ALPHA = 0.3  # weight of g(d) in the net score
 
 
 def search(query: str, k: int = 5, mode: str = "bm25", defenses: bool = True,
-           alpha: float = ALPHA, stem: bool = True) -> list[dict]:
+           alpha: float = ALPHA, stem: bool = True, corpus: str = "clean") -> list[dict]:
     """Top-k chunks for `query` by net score. Result format as in CLAUDE.md."""
-    st = get_state(stem)
-    chunks = score_cache["chunks"]  # chunk_id -> chunk record, loaded by get_state
+    st = get_state(stem, corpus)
+    chunks = st["chunks"]  # chunk_id -> chunk record, loaded by get_state
     terms = preprocess(query, stem=stem)
     if mode == "bm25":
         acc = score_bm25(terms, st)
@@ -50,7 +54,7 @@ def search(query: str, k: int = 5, mode: str = "bm25", defenses: bool = True,
     for cid, a in acc.items():
         rel = a["score"] / max_raw
         c = chunks[cid]
-        q = quality.quality(c["url"], c["host"])
+        q = quality.quality(c["url"], c["host"], corpus)
         g_term = alpha * q["g"] if defenses else 0.0
         net[cid] = {"score": rel + g_term, "relevance_norm": rel, "g_term": g_term, "quality": q}
 
@@ -63,7 +67,7 @@ def search(query: str, k: int = 5, mode: str = "bm25", defenses: bool = True,
         results.append({
             "chunk_id": cid, "score": round(score, 4),
             "score_breakdown": {
-                "mode": mode, "defenses": defenses, "query_terms": terms,
+                "mode": mode, "defenses": defenses, "corpus": corpus, "query_terms": terms,
                 "relevance_raw": round(acc[cid]["score"], 4), "max_relevance_raw": round(max_raw, 4),
                 "relevance_norm": round(n["relevance_norm"], 4),
                 "alpha": alpha if defenses else 0.0, "g": n["quality"], "g_term": round(n["g_term"], 4),
@@ -80,7 +84,7 @@ def print_results(query: str, results: list[dict]) -> None:
         print(f'\nquery: "{query}"  -> no matching chunks')
         return
     b0 = results[0]["score_breakdown"]
-    print(f'\nquery: "{query}"   mode={b0["mode"]}   defenses={"on" if b0["defenses"] else "off"}'
+    print(f'\nquery: "{query}"   corpus={b0["corpus"]}   mode={b0["mode"]}   defenses={"on" if b0["defenses"] else "off"}'
           f'   alpha={b0["alpha"]}   terms={b0["query_terms"]}   max raw={b0["max_relevance_raw"]}')
     print(f"  {'#':>2}  {'net':>6} = {'rel':>6} + {'a*g':>6}   {'raw':>7}  {'PR_n':>5} {'trust':>5} {'g':>5}  chunk")
     for i, r in enumerate(results, 1):
@@ -101,9 +105,10 @@ def main() -> None:
     parser.add_argument("--alpha", type=float, default=ALPHA)
     parser.add_argument("--no-defenses", action="store_true")
     parser.add_argument("--no-stem", action="store_true")
+    parser.add_argument("--corpus", choices=["clean", "poisoned"], default="clean")
     args = parser.parse_args()
     results = search(args.query, k=args.k, mode=args.mode, defenses=not args.no_defenses,
-                     alpha=args.alpha, stem=not args.no_stem)
+                     alpha=args.alpha, stem=not args.no_stem, corpus=args.corpus)
     print_results(args.query, results)
 
 

@@ -25,7 +25,13 @@ and then added to every query's relevance score (net score, see ranking/search.p
     min and max are taken over CONTENT pages only (pages that have chunks). The site-wide
     healthtopics.html hub is linked from every page's navigation bar and has ~30x the PageRank of any
     topic page; if it set the max, the best real topic would only reach 0.5. Hubs are clipped to 1.
-    A page that is not in the graph at all (e.g. an injected poisoned page nobody links to) gets 0.
+    A page that is not in the graph at all gets 0.
+
+    Poisoned corpus (attack/inject.py): data/links_poisoned.json = the clean graph plus each external
+    poisoned page as a node with NO inlinks (nobody real links to a spam site). It only collects
+    teleport rank. Insider poison sections live on an existing MedlinePlus URL, so they inherit that
+    page's PageRank. min/max for the normalisation come from the clean content pages only, so the
+    0-1 scale means the same thing in both corpora.
 
 (b) Trusted-host bonus: 1 if the page's host is in TRUSTED_HOSTS (medlineplus.gov), else 0.
     Any other host, including future poisoned pages, gets nothing. Source reputation is the main
@@ -38,9 +44,10 @@ import math
 import os
 from urllib.parse import urlsplit
 
-from index.build_index import load_chunks
+from index.build_index import chunks_path, load_chunks
 
 LINKS_PATH = os.path.join("data", "links.json")
+LINKS_PATHS = {"clean": LINKS_PATH, "poisoned": os.path.join("data", "links_poisoned.json")}
 
 DAMPING = 0.85          # probability of following a link (1 - DAMPING = teleport probability)
 TOL = 1e-10             # stop when the total change in PageRank (L1) is below this
@@ -50,7 +57,7 @@ TRUSTED_HOSTS = {"medlineplus.gov"}
 W_PAGERANK = 0.5        # g(d) weights; must sum to 1 so g stays in [0, 1]
 W_TRUST = 0.5
 
-_cache: dict = {}
+_cache: dict = {}  # corpus -> state
 
 
 def load_graph(path: str = LINKS_PATH) -> dict[str, list[str]]:
@@ -93,9 +100,9 @@ def normalise_log(pr: dict[str, float], ref: set[str]) -> dict[str, float]:
     return {u: min(1.0, max(0.0, (l - lo) / span)) for u, l in logs.items()}
 
 
-def quality(url: str, host: str | None = None) -> dict:
+def quality(url: str, host: str | None = None, corpus: str = "clean") -> dict:
     """g(d) and its parts for one page. Works for pages outside the graph (pr_norm = 0)."""
-    st = get_state()
+    st = get_state(corpus)
     host = host or urlsplit(url).hostname or ""
     pr_norm = st["pr_norm"].get(url, 0.0)
     trusted = 1.0 if host in TRUSTED_HOSTS else 0.0
@@ -107,15 +114,17 @@ def quality(url: str, host: str | None = None) -> dict:
     }
 
 
-def get_state() -> dict:
-    """PageRank computed once per process and cached (about 1,000 nodes: well under a second)."""
-    if not _cache:
-        graph = load_graph()
+def get_state(corpus: str = "clean") -> dict:
+    """PageRank computed once per process and corpus, and cached (about 1,000 nodes: well under a second)."""
+    if corpus not in _cache:
+        graph = load_graph(LINKS_PATHS[corpus])
         pr, iters = pagerank(graph)
-        content_urls = {c["url"] for c in load_chunks()}
-        _cache.update(graph=graph, pr=pr, pr_norm=normalise_log(pr, content_urls),
-                      content_urls=content_urls, iterations=iters)
-    return _cache
+        chunks = load_chunks(chunks_path(corpus))
+        content_urls = {c["url"] for c in chunks}
+        clean_urls = {c["url"] for c in chunks if not c.get("is_poison")}  # normalisation reference
+        _cache[corpus] = dict(graph=graph, pr=pr, pr_norm=normalise_log(pr, clean_urls),
+                              content_urls=content_urls, iterations=iters)
+    return _cache[corpus]
 
 
 def main() -> None:
