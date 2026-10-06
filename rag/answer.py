@@ -27,6 +27,7 @@ import random
 import re
 import sys
 import textwrap
+import threading
 import time
 from pathlib import Path
 
@@ -44,6 +45,7 @@ ABSTAIN = "I don't have enough information in my sources to answer that."
 
 CACHE_DIR = Path(__file__).resolve().parent.parent / "data" / "llm_cache"
 MAX_ATTEMPTS = 6              # 1 try + 5 retries on rate-limit / server / network errors
+CACHE_ONLY = False            # True: a cache miss raises instead of calling the API (re-scoring old runs)
 
 SYSTEM_PROMPT = f"""You answer health questions for a retrieval-augmented QA system.
 
@@ -97,6 +99,15 @@ def _cache_key(request: dict) -> str:
     return hashlib.sha256(json.dumps(request, sort_keys=True).encode("utf-8")).hexdigest()
 
 
+_key_locks: dict[str, threading.Lock] = {}  # one lock per cache key
+_key_locks_guard = threading.Lock()
+
+
+def _lock_for(key: str) -> threading.Lock:
+    with _key_locks_guard:
+        return _key_locks.setdefault(key, threading.Lock())
+
+
 def call_llm(system: str, prompt: str, use_cache: bool = True, sample: int = 0) -> dict:
     """Return {"text", "stop_reason", "usage", "cached"} for this exact request.
 
@@ -104,15 +115,26 @@ def call_llm(system: str, prompt: str, use_cache: bool = True, sample: int = 0) 
     model's answers vary run to run; sample=1, 2, ... gets its own cache entry, so an experiment can
     draw several answers per prompt and still be reproducible. sample=0 (default) keeps the original
     cache key, so existing cache entries stay valid.
+
+    Thread-safe: two threads sending the SAME request at once would both miss the cache, both pay for
+    an API call, and the second answer would overwrite the first in the cache. A lock per cache key
+    makes the second thread wait and then read the first thread's cached answer.
     """
     request = {"model": MODEL, "effort": EFFORT, "max_tokens": MAX_TOKENS,
                "system": system, "prompt": prompt}
     if sample:
         request["sample"] = sample
+    with _lock_for(_cache_key(request)):
+        return _call_llm(request, use_cache)
+
+
+def _call_llm(request: dict, use_cache: bool) -> dict:
     path = CACHE_DIR / f"{_cache_key(request)}.json"
     if use_cache and path.exists():
         entry = json.loads(path.read_text(encoding="utf-8"))
         return {**entry["response"], "cached": True}
+    if CACHE_ONLY:
+        raise RuntimeError("cache miss with CACHE_ONLY set: this request was never answered before")
 
     client = _get_client()
     for attempt in range(MAX_ATTEMPTS):
@@ -121,8 +143,8 @@ def call_llm(system: str, prompt: str, use_cache: bool = True, sample: int = 0) 
                 model=MODEL,
                 max_tokens=MAX_TOKENS,
                 output_config={"effort": EFFORT},
-                system=system,
-                messages=[{"role": "user", "content": prompt}],
+                system=request["system"],
+                messages=[{"role": "user", "content": request["prompt"]}],
             )
             break
         except anthropic.RateLimitError as e:          # 429: honour the server's retry-after if given

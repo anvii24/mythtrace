@@ -2,6 +2,7 @@
 
     python -m eval.attack_experiment              # retrieval + answers (LLM calls, cached)
     python -m eval.attack_experiment --no-llm     # retrieval level only, no API calls
+    python -m eval.attack_experiment --cache-only # re-score cached answers; a cache miss is an error
 
 Needs the poisoned corpus: run `python -m attack.inject` first (it writes data/poison_manifest.json).
 
@@ -42,6 +43,7 @@ import os
 import re
 from concurrent.futures import ThreadPoolExecutor
 
+from rag import answer as rag_answer
 from rag.answer import answer
 from ranking.score import get_state
 from ranking.search import ALPHA, search
@@ -167,8 +169,11 @@ def split_of(m: dict) -> str:
 def main() -> None:
     parser = argparse.ArgumentParser(description="Attack success rate per defense configuration.")
     parser.add_argument("--no-llm", action="store_true", help="retrieval level only")
+    parser.add_argument("--cache-only", action="store_true",
+                        help="never call the API: stop with an error if an answer isn't cached")
     parser.add_argument("--workers", type=int, default=4, help="parallel LLM requests")
     args = parser.parse_args()
+    rag_answer.CACHE_ONLY = args.cache_only
 
     with open(MANIFEST_PATH, encoding="utf-8") as f:
         manifest = json.load(f)

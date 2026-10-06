@@ -87,8 +87,10 @@ Notes on each step:
    `python -m ranking.search "treatment for dengue fever" --corpus poisoned --no-defenses`.
 8. **Answer** takes the same `--mode`, `--k`, `--defenses`, `--no-defenses` and `--corpus` options,
    plus `--no-cache` to force a new API call.
-9. **Attack experiment:** about 128 LLM answers if nothing is cached. `--no-llm` runs only the
-   retrieval part, with no API calls. It overwrites the two result files.
+9. **Attack experiment:** about 128 LLM answers if nothing is cached (102 distinct prompts, because
+   configs that retrieve the same top 5 share a cached answer). `--no-llm` runs only the retrieval
+   part, with no API calls; `--cache-only` re-scores the cached answers and stops with an error rather
+   than call the API. It overwrites the two result files.
 10. **Label rates:** label `eval/results/answers_to_label.csv` first (guide below). That file was
     made by `python -m eval.export_labels`, which refuses to overwrite it unless you pass `--force`
     (and `--force` erases the labels).
@@ -184,8 +186,10 @@ Implemented and run on the real corpus (the IR parts are written from scratch, w
   - g(d) alone (alpha 0.3) blocks none. At alpha 1.0 it blocks every external page but no insider.
   - The Jaccard / stuffing check cuts that to **6/16**: 1/8 external pages and 5/8 insider pages still
     get through. Lightly stuffed insider pages pass under the thresholds.
-  - The LLM usually cites the poison only to reject it. The hand labels (`eval/label_rates.py`) will
-    measure real endorsement; this is in progress.
+  - The LLM usually cites the poison only to reject it. Hand labels of 64 answers (bm25 none and
+    bm25+all, 2 samples each; `eval/label_rates.py`): **0 endorse the false claim**, 46 refute it and
+    18 ignore it. 11 of those labels were made on an earlier text of the same answer (see AI_USE.md,
+    2026-10-06) and still need relabelling against the current answers.
 
 ## What's planned
 
