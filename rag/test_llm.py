@@ -9,7 +9,7 @@ import sys
 import anthropic
 from dotenv import load_dotenv
 
-MODEL = "claude-opus-5-5"
+MODEL = "claude-sonnet-5-5"
 
 
 def main():

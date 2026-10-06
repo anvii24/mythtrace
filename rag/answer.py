@@ -13,8 +13,8 @@ Pipeline:
   4. Check:     parse every [n] in the answer, map it back to a chunk_id via source_map, and flag
                 any n that was not one of the numbered sources (a hallucinated citation).
 
-Reproducibility: the current model (claude-opus-5-5) does not accept a `temperature` setting, so we
-cannot force greedy decoding. Instead every LLM response is cached on disk (data/llm_cache/), keyed
+Reproducibility: the current model (claude-sonnet-5-5) rejects any non-default `temperature` (0 gives a
+400 "temperature is deprecated for this model"), so we cannot force greedy decoding. Instead every LLM response is cached on disk (data/llm_cache/), keyed
 on a hash of the exact request (model + settings + prompt). Re-running an experiment with the same
 retrieved chunks returns the identical answer without another API call; a different retrieval
 (e.g. defenses on vs off) changes the prompt and so gets its own cache entry.
@@ -35,7 +35,7 @@ from dotenv import load_dotenv
 
 from ranking.search import search
 
-MODEL = "claude-opus-5-5"     # same provider/model as rag/test_llm.py
+MODEL = "claude-sonnet-5-5"     # same provider/model as rag/test_llm.py
 EFFORT = "medium"             # thinking depth; set explicitly so cached keys stay meaningful
 MAX_TOKENS = 8000             # includes the model's (hidden) thinking tokens
 K = 5                         # chunks put into the prompt
