@@ -9,3 +9,4 @@
 - 2026-10-06: Claude Code wrote index/chunker.py (one chunk per page section, zones title/heading/body, writes data/chunks.jsonl) and index/text.py (preprocess(): tokenise keeping numbers, lowercase, nltk stop words, optional Porter stemming).
 - 2026-10-06: Claude Code added short-chunk merging to index/chunker.py (sections under 25 words join the next section on the page, or the previous one if last).
 - 2026-10-06: Claude Code wrote index/build_index.py (positional inverted index per zone over chunks.jsonl, df + sorted postings, chunk lengths and N, stemmed + unstemmed builds in data/index/, positional phrase matching with postings merge).
+- 2026-10-06: Claude Code wrote ranking/score.py (lnc.ltc tf-idf + cosine, BM25 k1=1.2 b=0.75, zone-weighted tf 3/2/1 for title/heading/body, size-K min-heap top-K with heapq, per-term score breakdown, search() retriever interface and CLI).
