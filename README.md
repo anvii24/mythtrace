@@ -8,6 +8,8 @@
 
 ## Data sources
 
+> **Warning:** the pages in `attack/poison_pages.json` are synthetic health misinformation, written on purpose for a security experiment (poisoning a RAG system). Their claims are false. Do not use them as health advice.
+
 All crawling obeys each host's robots.txt (a copy of every robots.txt we fetched is saved in `data/robots/`),
 waits at least 1 second between requests to the same host (longer if robots.txt sets a Crawl-delay), and
 identifies itself with the User-Agent `TrustRAG-CSD358-student-project`. No personal data is collected.
