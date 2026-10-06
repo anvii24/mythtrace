@@ -38,6 +38,10 @@ from ranking.search import search
 
 MODEL = "claude-sonnet-5-5"     # same provider/model as rag/test_llm.py
 EFFORT = "medium"             # thinking depth; set explicitly so cached keys stay meaningful
+HAIKU = "claude-haiku-4-5-20251001"  # smaller model, for the "does a weaker model fall for poison?" run
+# Per-model effort. Haiku 4.5 rejects output_config.effort (and runs without thinking unless asked),
+# so it gets None = the parameter is not sent and not part of the cache key.
+EFFORTS = {MODEL: EFFORT, HAIKU: None}
 MAX_TOKENS = 8000             # includes the model's (hidden) thinking tokens
 K = 5                         # chunks put into the prompt
 
@@ -108,7 +112,8 @@ def _lock_for(key: str) -> threading.Lock:
         return _key_locks.setdefault(key, threading.Lock())
 
 
-def call_llm(system: str, prompt: str, use_cache: bool = True, sample: int = 0) -> dict:
+def call_llm(system: str, prompt: str, use_cache: bool = True, sample: int = 0,
+             model: str = MODEL) -> dict:
     """Return {"text", "stop_reason", "usage", "cached"} for this exact request.
 
     sample: which independent sample of the same request this is. We can't set temperature, so the
@@ -120,8 +125,10 @@ def call_llm(system: str, prompt: str, use_cache: bool = True, sample: int = 0) 
     an API call, and the second answer would overwrite the first in the cache. A lock per cache key
     makes the second thread wait and then read the first thread's cached answer.
     """
-    request = {"model": MODEL, "effort": EFFORT, "max_tokens": MAX_TOKENS,
-               "system": system, "prompt": prompt}
+    # The default model's request dict is unchanged from before, so its cache keys stay valid.
+    request = {"model": model, "max_tokens": MAX_TOKENS, "system": system, "prompt": prompt}
+    if EFFORTS.get(model) is not None:
+        request["effort"] = EFFORTS[model]
     if sample:
         request["sample"] = sample
     with _lock_for(_cache_key(request)):
@@ -139,10 +146,11 @@ def _call_llm(request: dict, use_cache: bool) -> dict:
     client = _get_client()
     for attempt in range(MAX_ATTEMPTS):
         try:
+            effort = {"output_config": {"effort": request["effort"]}} if "effort" in request else {}
             resp = client.messages.create(
-                model=MODEL,
-                max_tokens=MAX_TOKENS,
-                output_config={"effort": EFFORT},
+                model=request["model"],
+                max_tokens=request["max_tokens"],
+                **effort,
                 system=request["system"],
                 messages=[{"role": "user", "content": request["prompt"]}],
             )
@@ -201,7 +209,8 @@ def parse_citations(text: str, source_map: dict[int, str]) -> tuple[list[str], l
 # Public interface (CLAUDE.md)
 # ---------------------------------------------------------------------------------------------
 
-def answer(question: str, use_cache: bool = True, sample: int = 0, **retriever_kwargs) -> dict:
+def answer(question: str, use_cache: bool = True, sample: int = 0, model: str = MODEL,
+           **retriever_kwargs) -> dict:
     """Retrieve, prompt, generate, check citations.
 
     Returns the CLAUDE.md fields {"answer", "citations", "retrieved"} plus extras for evaluation:
@@ -212,7 +221,7 @@ def answer(question: str, use_cache: bool = True, sample: int = 0, **retriever_k
     prompt, source_map = build_prompt(question, retrieved)
 
     if retrieved:
-        llm = call_llm(SYSTEM_PROMPT, prompt, use_cache=use_cache, sample=sample)
+        llm = call_llm(SYSTEM_PROMPT, prompt, use_cache=use_cache, sample=sample, model=model)
     else:  # nothing matched at all: no point asking the model
         llm = {"text": ABSTAIN, "stop_reason": "no_retrieval", "usage": None, "cached": False}
 

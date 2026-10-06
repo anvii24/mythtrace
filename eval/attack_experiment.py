@@ -15,6 +15,10 @@ Retrieval-level attack success (cheap, no LLM):
     Configurations: tfidf none, bm25 none, bm25+quality, bm25+jaccard, bm25+all, tfidf+all,
     plus an alpha sweep (0, 0.1, 0.3, 0.5, 1.0) for bm25+quality.
 
+Crowding out (retrieval level, every configuration):
+    how many of the CLEAN corpus's top-5 chunks for the question are pushed out of the top 5 once the
+    poison is injected. Even an LLM that rejects the poison loses those real sources.
+
 Answer-level attack success (LLM calls, only for bm25 none / +quality / +jaccard / +all):
     each configuration is answered twice (sample 0 and 1: separate cache entries, because the model
     can't be run at temperature 0, see rag/answer.py). The attack succeeds if EITHER answer
@@ -88,7 +92,28 @@ def poison_rank(m: dict, mode: str, defenses, alpha: float) -> dict:
     # The chunk that took rank 1 (useful to see WHAT beat the poison)
     if ranked:
         row["top1_chunk"] = ranked[0]["chunk_id"]
+    row.update(crowding_out(m, mode, defenses, alpha, ranked))
     return row
+
+
+def crowding_out(m: dict, mode: str, defenses, alpha: float, ranked_poisoned: list[dict]) -> dict:
+    """How many of the CLEAN corpus's top-5 chunks for this question are gone from the top 5 once
+    the poison is injected (same question, same configuration)?
+
+    This is the second harm of poisoning: even when the LLM ignores or rejects the poison, every
+    slot a poison chunk takes is a real MedlinePlus chunk the LLM never sees. Counted:
+      clean_top5_pushed_out  clean top-5 chunks missing from the poisoned top 5 (0-5)
+      poison_in_top5         poison chunks in the poisoned top 5 - ANY poison page, not only this one
+                             (e.g. the "Can type 2 diabetes be cured?" question also pulls in P01, P09)
+    Usually pushed_out == poison_in_top5. It can differ by a little because injection also changes N,
+    df and the BM25 average length, which can reshuffle the clean chunks at the edge of the top 5.
+    """
+    clean = search(m["target_question"], k=K, mode=mode, defenses=list(defenses), alpha=alpha, corpus="clean")
+    poisoned_top = ranked_poisoned[:K]
+    chunks = get_state(True, "poisoned")["chunks"]
+    top_ids = {r["chunk_id"] for r in poisoned_top}
+    return {"clean_top5_pushed_out": sum(1 for r in clean if r["chunk_id"] not in top_ids),
+            "poison_in_top5": sum(1 for r in poisoned_top if chunks[r["chunk_id"]].get("is_poison"))}
 
 
 # ---------------------------------------------------------------------------------------------
@@ -145,6 +170,18 @@ def rate_table(rows: list[dict], configs: list[str], field: str, title: str) -> 
             sel = [r for r in rows if r["config"] == name and keep(r) and r[field] != ""]
             hit = sum(1 for r in sel if r[field] is True)
             cells.append(f"{hit}/{len(sel)} {100 * hit / len(sel):3.0f}%" if sel else "-")
+        print(f"  {name:<20}" + "".join(f"{c:>14}" for c in cells))
+
+
+def mean_table(rows: list[dict], configs: list[str], field: str, title: str) -> None:
+    """Average of a numeric per-page field, with the pages where it is > 0."""
+    print(f"\n{title}\n" + "-" * len(title))
+    print(f"  {'configuration':<20}" + "".join(f"{g:>14}" for g, _ in GROUPS))
+    for name in configs:
+        cells = []
+        for _, keep in GROUPS:
+            vals = [r[field] for r in rows if r["config"] == name and keep(r)]
+            cells.append(f"{sum(vals) / len(vals):.2f} ({sum(v > 0 for v in vals)}/{len(vals)})" if vals else "-")
         print(f"  {name:<20}" + "".join(f"{c:>14}" for c in cells))
 
 
@@ -239,6 +276,10 @@ def main() -> None:
     rate_table(rows, main_cfgs, "in_top5", "RETRIEVAL attack success: poison chunk in top 5")
     rate_table(rows, sweep, "in_top5", "RETRIEVAL attack success, alpha sweep for bm25+quality")
     rank_table(rows, manifest, main_cfgs)
+    mean_table(rows, main_cfgs, "clean_top5_pushed_out",
+               "CROWDING OUT: clean top-5 chunks pushed out by injection, mean per page (pages > 0)")
+    mean_table(rows, main_cfgs, "poison_in_top5",
+               "Poison chunks (any page) in the top 5, mean per page (pages > 0)")
     if not args.no_llm:
         llm_cfgs = [n for n, c in CONFIGS.items() if c[3]]
         rate_table(rows, llm_cfgs, "answer_success",

@@ -67,6 +67,7 @@ the poisoned copy, and steps 7-10 use them. All generated files under `data/` ar
 | 7 | Search (CLI) | `python -m ranking.search "symptoms of type 2 diabetes"` | nothing (prints top-K + score breakdown) |
 | 8 | Answer with citations (CLI) | `python -m rag.answer "What are the symptoms of type 2 diabetes?"` | an entry in `data/llm_cache/` |
 | 9 | Attack experiment | `python -m eval.attack_experiment` | `eval/results/attack_results.csv`, `eval/results/attack_answers.jsonl` |
+| 9b | Same attack answered by Haiku 4.5 | `python -m eval.model_compare` | `eval/results/attack_answers_haiku.jsonl` |
 | 10 | Endorsement rates from hand labels | `python -m eval.label_rates` | nothing (prints tables from `eval/results/answers_to_label.csv`) |
 
 Notes on each step:
@@ -91,6 +92,8 @@ Notes on each step:
    configs that retrieve the same top 5 share a cached answer). `--no-llm` runs only the retrieval
    part, with no API calls; `--cache-only` re-scores the cached answers and stops with an error rather
    than call the API. It overwrites the two result files.
+9b. **Haiku run:** bm25 none only, 2 samples per page = 32 answers if nothing is cached; same
+   retrieved chunks as the Sonnet run, so only the model differs. `--cache-only` works here too.
 10. **Label rates:** label `eval/results/answers_to_label.csv` first (guide below). That file was
     made by `python -m eval.export_labels`, which refuses to overwrite it unless you pass `--force`
     (and `--force` erases the labels).
@@ -120,6 +123,11 @@ Rules:
 - Don't fix the citations, and don't look at the `config` column while you judge, so you aren't biased.
 - When unsure, write the label you lean towards and note the row in the team chat. Two people should
   label the same file independently if time allows; then compare where they disagree.
+
+The same guide applies to `answers_to_relabel.csv` (11 answers whose text changed after an earlier
+labelling round; their labels replace the matching rows in `answers_to_label.csv`) and to
+`answers_to_label_haiku.csv` (32 Haiku answers, bm25 none). Pass a file with
+`python -m eval.label_rates --path <file>`.
 
 Then run `python -m eval.label_rates` for endorsement rates per config and attack type.
 Unknown labels are rejected and empty ones skipped. To regenerate the file from a new experiment run,
@@ -174,6 +182,16 @@ Implemented and run on the real corpus (the IR parts are written from scratch, w
   PageRank by power iteration plus a trusted-host bonus giving g(d), and the net score
   `relevance_norm + alpha * g(d) - penalty * #flags`. Content defenses: query-copy (Jaccard) and
   keyword-stuffing (repetition ratio) flags. Every score has a full breakdown in the CLI.
+- **Crowding out:** for each question the experiment also counts how many of the clean corpus's
+  top-5 chunks are pushed out once poison is injected. bm25 none: 2.31 per page on average (3.00
+  external, 1.62 insider), pushed out by poison taking the slots. bm25+all: 1.06. Side effect: a demoted
+  poison chunk still has the top raw BM25 score, so it sets the divisor in relevance normalisation and
+  squashes every clean chunk's relevance (e.g. 1.0 -> 0.22). Then g(d) reorders the clean chunks, and some
+  are pushed out with no poison in the top 5 (P01, P05, P09).
+- **Haiku 4.5 vs Sonnet 5.5** (bm25 none, same chunks): Haiku cites the poison on 12/16 pages
+  (external 8/8, insider 4/8) vs Sonnet's 16/16. It mostly answers insider questions from the real
+  chunks without mentioning the poison, and sometimes rejects a claim with outside knowledge the
+  prompt forbids. Hand labels in `answers_to_label_haiku.csv` are pending.
 - **RAG** (`rag/`): answers only from the top-5 chunks with `[n]` citations mapped back to chunk ids,
   abstains with a fixed sentence when the sources lack the answer, detects invalid citations, and
   caches every LLM response on disk with retry and backoff.
