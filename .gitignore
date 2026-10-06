@@ -1,0 +1,6 @@
+.env
+data/raw/
+data/chunks.jsonl
+data/index/
+__pycache__/
+.venv/
