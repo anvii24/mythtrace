@@ -71,6 +71,7 @@ the poisoned copy, and steps 7-12 use them. All generated files under `data/` ar
 | 10 | Endorsement rates from hand labels | `python -m eval.label_rates` | nothing (prints tables from `eval/results/answers_to_label.csv`) |
 | 11 | Retrieval quality on the clean corpus (P@5, P@10, Hit@5, MRR) | `python -m eval.retrieval_eval` | `eval/results/qrels_pages.json`, `eval/results/retrieval_results.csv` |
 | 12 | Clean-corpus answers: abstention + citation coverage | `python -m eval.clean_answers` | `eval/results/clean_answers.jsonl` |
+| 13 | Demo app (Streamlit) | `streamlit run app.py` | nothing (opens in the browser; LLM answers go to `data/llm_cache/`) |
 
 Notes on each step:
 
@@ -103,6 +104,24 @@ Notes on each step:
     Evaluation below).
 12. **Clean answers:** 25 questions, bm25 + all defenses, Sonnet; 25 LLM answers if nothing is
     cached. `--cache-only` re-scores the cached answers.
+
+### Demo app
+
+Needs steps 1-6 done (both corpora indexed). From the repo root in PowerShell:
+
+```powershell
+.venv\Scripts\Activate.ps1
+pip install -r requirements.txt           # adds streamlit
+streamlit run app.py                      # opens http://localhost:8501
+```
+
+The app only calls the existing `search()`, `answer()` and index code; it changes no ranking, defense
+or answer behaviour. Tabs: **Investigate** (answer + citations, results table, query-term highlighting,
+score autopsy, query trace, defenses off/on comparison), **Case files** (one card per poison page:
+its rank with defenses off and on, which defense flagged it, Caught/Unsolved) and **Lab results**
+(the report figures with captions). Answers come from `data/llm_cache/` when that exact request was
+asked before; a new combination of settings makes one API call. "Generate LLM answer" in the sidebar
+turns answering off. The poison example buttons switch the corpus to *poisoned*.
 
 ## Evaluation
 

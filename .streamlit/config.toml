@@ -1,0 +1,12 @@
+# Theme for the demo app (app.py): calm "clinical forensics lab".
+# Off-white background, dark slate text, one muted teal accent.
+[theme]
+base = "light"
+primaryColor = "#2f7f7a"
+backgroundColor = "#f7f6f2"
+secondaryBackgroundColor = "#ebe9e3"
+textColor = "#1f2a33"
+font = "sans serif"
+
+[browser]
+gatherUsageStats = false
