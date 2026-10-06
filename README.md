@@ -53,7 +53,7 @@ The model is `claude-sonnet-5-5` (set in `rag/answer.py`). Every LLM response is
 ## How to run
 
 Run every step from the repo root with the venv active. Steps 1-5 build the clean corpus, step 6 builds
-the poisoned copy, and steps 7-10 use them. All generated files under `data/` are gitignored except
+the poisoned copy, and steps 7-12 use them. All generated files under `data/` are gitignored except
 `data/crawl_summary.json` and `data/robots/`.
 
 | # | Step | Command | Produces |
@@ -69,6 +69,8 @@ the poisoned copy, and steps 7-10 use them. All generated files under `data/` ar
 | 9 | Attack experiment | `python -m eval.attack_experiment` | `eval/results/attack_results.csv`, `eval/results/attack_answers.jsonl` |
 | 9b | Same attack answered by Haiku 4.5 | `python -m eval.model_compare` | `eval/results/attack_answers_haiku.jsonl` |
 | 10 | Endorsement rates from hand labels | `python -m eval.label_rates` | nothing (prints tables from `eval/results/answers_to_label.csv`) |
+| 11 | Retrieval quality on the clean corpus (P@5, P@10, Hit@5, MRR) | `python -m eval.retrieval_eval` | `eval/results/qrels_pages.json`, `eval/results/retrieval_results.csv` |
+| 12 | Clean-corpus answers: abstention + citation coverage | `python -m eval.clean_answers` | `eval/results/clean_answers.jsonl` |
 
 Notes on each step:
 
@@ -97,8 +99,28 @@ Notes on each step:
 10. **Label rates:** label `eval/results/answers_to_label.csv` first (guide below). That file was
     made by `python -m eval.export_labels`, which refuses to overwrite it unless you pass `--force`
     (and `--force` erases the labels).
+11. **Retrieval eval:** no API calls; questions come from `eval/questions.csv` (relevance: see
+    Evaluation below).
+12. **Clean answers:** 25 questions, bm25 + all defenses, Sonnet; 25 LLM answers if nothing is
+    cached. `--cache-only` re-scores the cached answers.
 
 ## Evaluation
+
+### Retrieval relevance is page-level
+
+`eval/questions.csv` has 25 health questions: Q01-Q20 answerable from MedlinePlus, Q21-Q25 out of
+scope (prices, local doctors, live case counts, an Indian scheme's application steps). Before any
+search was run, a teammate wrote down for each answerable question the MedlinePlus topic page(s) that
+should answer it (`expected_topic_pages`). Those choices are the relevance judgments: a retrieved chunk
+counts as relevant if it comes from one of the question's expected pages, and nothing else is judged
+by hand. `eval/retrieval_eval.py` maps each topic name to the crawled page with that title (two names
+needed an alias for the same page: Influenza -> "Flu", Nutrition during pregnancy -> "Pregnancy and
+Nutrition") and saves the mapping in `eval/results/qrels_pages.json`. Q10's page (Gestational
+Diabetes) was not in the crawl, so Q10 is skipped in the retrieval metrics.
+
+Consequences to keep in mind: a chunk from a closely related page (e.g. "HDL: The Good Cholesterol"
+for the LDL vs HDL question) counts as not relevant, and P@k is capped when the expected pages have
+fewer than k chunks (the script prints this ceiling).
 
 ### Labelling guide: did the answer give the false claim?
 
