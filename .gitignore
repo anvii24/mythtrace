@@ -6,3 +6,4 @@ __pycache__/
 .venv/
 data/links.json
 data/crawl_log.jsonl
+data/crawl.log

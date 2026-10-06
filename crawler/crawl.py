@@ -1,7 +1,12 @@
 """The crawl loop: frontier -> robots check -> fetch -> parse -> dedup -> save -> enqueue links.
 
-Run a small test crawl (MedlinePlus only, stop after 20 saved pages):
-    python -m crawler.crawl --max-pages 20
+Command-line entry point:
+    python -m crawler.crawl --max-pages 20                                  # small test, MedlinePlus only
+    python -m crawler.crawl --sources medlineplus mohfw --max-pages 1000 --clean   # full crawl
+Options: --sources (which sites), --max-pages, --max-depth, --max-per-host, --threshold,
+--log-file (full per-URL log, default data/crawl.log), --progress-every N, --verbose
+(per-URL lines on screen too), --clean (delete pages saved by an earlier crawl first).
+Ctrl+C stops the crawl cleanly: everything saved so far is kept and the summary is still printed.
 
 For every URL the frontier hands out:
   1. robots.txt check        (RobotsCache; refuse if disallowed or robots.txt unavailable)
@@ -11,13 +16,15 @@ For every URL the frontier hands out:
   5. near-duplicate check    word k-shingles + Jaccard similarity >= threshold
   6. save                    data/raw/<doc_id>.json (+ the raw HTML, gzipped, for re-parsing offline)
   7. enqueue links           normalised, in-scope links go back into the frontier at depth + 1
-The link graph (page -> in-scope outlinks) goes to data/links.json and a one-line-per-URL
-log of what happened goes to data/crawl_log.jsonl.
+The link graph (page -> in-scope outlinks) goes to data/links.json, a one-line-per-URL
+machine-readable log goes to data/crawl_log.jsonl, and the final summary to data/crawl_summary.json.
 """
 import argparse
+import glob
 import gzip
 import hashlib
 import json
+import logging
 import os
 import re
 import time
@@ -37,6 +44,10 @@ RAW_DIR = os.path.join(DATA_DIR, "raw")
 SITEMAP_CACHE = os.path.join(RAW_DIR, "_sitemaps")
 LINKS_PATH = os.path.join(DATA_DIR, "links.json")
 LOG_PATH = os.path.join(DATA_DIR, "crawl_log.jsonl")
+TEXT_LOG_PATH = os.path.join(DATA_DIR, "crawl.log")
+SUMMARY_PATH = os.path.join(DATA_DIR, "crawl_summary.json")
+
+logger = logging.getLogger("crawler")
 
 TIMEOUT = 15            # seconds per request
 MAX_BYTES = 5_000_000   # skip anything bigger than 5 MB
@@ -65,12 +76,28 @@ def in_scope(url: str, hosts: set[str]) -> bool:
     return parts.netloc in hosts and pattern is not None and bool(pattern.fullmatch(parts.path))
 
 
+# Named sources for --sources: the host to crawl plus hand-picked start pages.
+# Sitemap URLs (from robots.txt, else /sitemap.xml) are added to these seeds automatically.
+SOURCES = {
+    "medlineplus": {"host": "medlineplus.gov",
+                    "seeds": ["https://medlineplus.gov/healthtopics.html"]},
+    # MoHFW's site is a JavaScript (Next.js) app: the HTML we download has no text or links, and
+    # its /sitemap.xml lists meity.gov.in pages. Expect few or no saved pages from this source.
+    "mohfw": {"host": "www.mohfw.gov.in",
+              "seeds": ["https://www.mohfw.gov.in/"]},
+}
+
+
 # ---------------------------------------------------------------- seeds
 
 def sitemap_seeds(host: str, robots: RobotsCache, hosts: set[str]) -> list[str]:
-    """In-scope URLs from the host's sitemap(s) listed in robots.txt (cached on disk for a day)."""
+    """In-scope URLs from the host's sitemap(s) (cached on disk for a day).
+
+    Sitemaps come from the robots.txt 'Sitemap:' lines; if there are none we try the
+    conventional https://<host>/sitemap.xml.
+    """
     urls = []
-    for sitemap_url in robots.sitemaps(f"https://{host}/"):
+    for sitemap_url in robots.sitemaps(f"https://{host}/") or [f"https://{host}/sitemap.xml"]:
         os.makedirs(SITEMAP_CACHE, exist_ok=True)
         cache = os.path.join(SITEMAP_CACHE, host + "_" + os.path.basename(urlsplit(sitemap_url).path))
         if os.path.exists(cache) and time.time() - os.path.getmtime(cache) < 86400:
@@ -78,16 +105,23 @@ def sitemap_seeds(host: str, robots: RobotsCache, hosts: set[str]) -> list[str]:
         else:
             if not robots.can_fetch(sitemap_url):
                 continue
-            resp = requests.get(sitemap_url, headers={"User-Agent": USER_AGENT}, timeout=60)
-            resp.raise_for_status()
+            try:
+                resp = requests.get(sitemap_url, headers={"User-Agent": USER_AGENT}, timeout=60)
+            except requests.RequestException as e:
+                logger.warning("sitemap %s: fetch failed (%s)", sitemap_url, type(e).__name__)
+                continue
+            finally:
+                time.sleep(robots.crawl_delay(sitemap_url))  # the sitemap fetch counts as a request to this host
+            if resp.status_code != 200:
+                logger.warning("sitemap %s: HTTP %s", sitemap_url, resp.status_code)
+                continue
             xml = resp.text
             with open(cache, "w", encoding="utf-8") as f:
                 f.write(xml)
-            time.sleep(robots.crawl_delay(sitemap_url))  # the sitemap fetch counts as a request to this host
-        for loc in re.findall(r"<loc>\s*(.*?)\s*</loc>", xml):
-            url = normalize_url(loc)
-            if url and in_scope(url, hosts):
-                urls.append(url)
+        locs = re.findall(r"<loc>\s*(.*?)\s*</loc>", xml)
+        found = [u for u in (normalize_url(loc) for loc in locs) if u and in_scope(u, hosts)]
+        logger.info("sitemap %s: %d URLs listed, %d in scope", sitemap_url, len(locs), len(found))
+        urls.extend(found)
     return urls
 
 
@@ -240,8 +274,14 @@ def fetch(session: requests.Session, url: str) -> tuple[requests.Response | None
     return resp, None
 
 
+def fmt_secs(s: float) -> str:
+    s = int(s)
+    return f"{s // 3600}h{s % 3600 // 60:02d}m" if s >= 3600 else f"{s // 60}m{s % 60:02d}s"
+
+
 def crawl(seeds: list[str], hosts: set[str], max_pages: int, max_depth: int, max_per_host: int,
-          threshold: float, robots: RobotsCache | None = None, verbose: bool = True) -> dict:
+          threshold: float, robots: RobotsCache | None = None, progress_every: int = 25) -> dict:
+    """Run the crawl. Per-URL lines are logged at DEBUG, progress lines every `progress_every` URLs at INFO."""
     os.makedirs(RAW_DIR, exist_ok=True)
     robots = robots or RobotsCache()
     frontier = Frontier(delay_fn=robots.crawl_delay, max_depth=max_depth, max_pages_per_host=max_per_host)
@@ -257,22 +297,44 @@ def crawl(seeds: list[str], hosts: set[str], max_pages: int, max_depth: int, max
     duplicates = []
     max_fetches = max_pages * 5  # safety stop if almost everything gets skipped
     fetches = 0
+    status_counts = Counter()       # saved / skipped / duplicate
+    saved_per_host = Counter()
+    stop_reason = "frontier empty"
     start = time.time()
 
-    log = open(LOG_PATH, "w", encoding="utf-8")
+    jsonl = open(LOG_PATH, "w", encoding="utf-8")
 
     def record(url, status, reason=None, **extra):
         outcomes[status if status == "saved" else f"{status}: {reason}"] += 1
-        log.write(json.dumps({"url": url, "status": status, "reason": reason, **extra}) + "\n")
-        if verbose:
-            tail = f"  ({reason})" if reason else ""
-            print(f"[{fetches:>3}] {status:<9} {url}{tail}")
+        status_counts[status] += 1
+        jsonl.write(json.dumps({"url": url, "status": status, "reason": reason, **extra}) + "\n")
+        tail = f"  ({reason})" if reason else ""
+        logger.debug(f"[{fetches:>4}] {status:<9} {url}{tail}")
+
+    def progress():
+        """One-line progress summary: counts, speed, and a rough time-left estimate."""
+        elapsed = time.time() - start
+        saved = status_counts["saved"]
+        rate = fetches / elapsed if elapsed else 0.0
+        # Estimate: URLs still needed = pages still needed / share of URLs that end up saved so far.
+        eta = ((max_pages - saved) / (saved / fetches)) / rate if saved and rate else None
+        hosts_txt = ", ".join(f"{h}={n}" for h, n in saved_per_host.most_common()) or "-"
+        logger.info(f"progress: saved {saved}/{max_pages} | URLs tried {fetches} "
+                    f"(dup {status_counts['duplicate']}, skipped {status_counts['skipped']}) | "
+                    f"{rate:.2f} URL/s | elapsed {fmt_secs(elapsed)} | "
+                    f"ETA {fmt_secs(eta) if eta is not None else '?'} | frontier {len(frontier)} | {hosts_txt}")
 
     try:
-        while outcomes["saved"] < max_pages and fetches < max_fetches:
+        while True:
+            if outcomes["saved"] >= max_pages:
+                stop_reason = f"reached --max-pages {max_pages}"
+                break
+            if fetches >= max_fetches:
+                stop_reason = f"safety stop: {max_fetches} URLs tried"
+                break
             item = frontier.next_url()
             if item is None:
-                break
+                break  # stop_reason stays "frontier empty"
             url, depth = item
             fetches += 1
             try:
@@ -334,20 +396,28 @@ def crawl(seeds: list[str], hosts: set[str], max_pages: int, max_depth: int, max
                     json.dump(doc, f, ensure_ascii=False, indent=1)
                 with gzip.open(os.path.join(RAW_DIR, f"{doc_id}.html.gz"), "wb") as f:
                     f.write(resp.content)
+                saved_per_host[get_host(final_url)] += 1
                 record(url, "saved", None, doc_id=doc_id, title=page["title"],
                        words=len(page["body"].split()), sections=len(page["sections"]))
-                if verbose:
-                    print(f"{'':>16}title={page['title']!r}  words={len(page['body'].split())}  "
-                          f"sections={len(page['sections'])}  links={len(in_scope_links)}  "
-                          f"modified(page)={page['page_modified']}  max_jaccard={sim:.2f}")
+                logger.debug(f"{'':>17}title={page['title']!r}  words={len(page['body'].split())}  "
+                             f"sections={len(page['sections'])}  links={len(in_scope_links)}  "
+                             f"modified(page)={page['page_modified']}  max_jaccard={sim:.2f}")
             finally:
                 frontier.release(url)
+                if fetches % progress_every == 0:
+                    progress()
+    except KeyboardInterrupt:
+        stop_reason = "interrupted (Ctrl+C)"
+        logger.warning("Ctrl+C: stopping; pages saved so far are kept")
     finally:
-        log.close()
+        jsonl.close()
         with open(LINKS_PATH, "w", encoding="utf-8") as f:
             json.dump(link_graph, f, indent=1)
+    progress()
 
     return {
+        "stop_reason": stop_reason,
+        "saved_per_host": dict(saved_per_host),
         "fetches": fetches,
         "outcomes": outcomes,
         "duplicates": duplicates,
@@ -360,42 +430,94 @@ def crawl(seeds: list[str], hosts: set[str], max_pages: int, max_depth: int, max
     }
 
 
+def setup_logging(log_file: str, verbose: bool):
+    """Everything (per-URL lines included) goes to the log file; the screen gets progress + summary,
+    or the per-URL lines too with --verbose."""
+    logger.setLevel(logging.DEBUG)
+    logger.handlers.clear()
+    os.makedirs(os.path.dirname(log_file) or ".", exist_ok=True)
+    to_file = logging.FileHandler(log_file, mode="w", encoding="utf-8")
+    to_file.setLevel(logging.DEBUG)
+    to_file.setFormatter(logging.Formatter("%(asctime)s %(levelname)-7s %(message)s", "%Y-%m-%d %H:%M:%S"))
+    to_screen = logging.StreamHandler()
+    to_screen.setLevel(logging.DEBUG if verbose else logging.INFO)
+    to_screen.setFormatter(logging.Formatter("%(asctime)s %(message)s", "%H:%M:%S"))
+    logger.addHandler(to_file)
+    logger.addHandler(to_screen)
+
+
+def clean_raw_dir() -> int:
+    """Delete pages saved by an earlier crawl (keeps the cached sitemaps)."""
+    old = glob.glob(os.path.join(RAW_DIR, "*.json")) + glob.glob(os.path.join(RAW_DIR, "*.html.gz"))
+    for path in old:
+        os.remove(path)
+    return len(old)
+
+
 def main():
     ap = argparse.ArgumentParser(description="TrustRAG crawler")
-    ap.add_argument("--hosts", nargs="+", default=["medlineplus.gov"])
-    ap.add_argument("--seeds", nargs="*", help="seed URLs (default: in-scope URLs from each host's sitemap)")
+    ap.add_argument("--sources", nargs="+", choices=sorted(SOURCES), default=["medlineplus"],
+                    help="which sites to crawl (default: medlineplus)")
+    ap.add_argument("--seeds", nargs="*", help="seed URLs (default: each source's start pages + sitemap)")
     ap.add_argument("--max-pages", type=int, default=20, help="stop after this many saved pages")
     ap.add_argument("--max-depth", type=int, default=3)
     ap.add_argument("--max-per-host", type=int, default=1500)
     ap.add_argument("--threshold", type=float, default=NEAR_DUP_THRESHOLD, help="near-duplicate Jaccard threshold")
+    ap.add_argument("--log-file", default=TEXT_LOG_PATH, help=f"full per-URL log (default {TEXT_LOG_PATH})")
+    ap.add_argument("--progress-every", type=int, default=25, help="print a progress line every N URLs")
+    ap.add_argument("--verbose", action="store_true", help="also print every URL on screen")
+    ap.add_argument("--clean", action="store_true", help=f"delete pages from an earlier crawl in {RAW_DIR}/ first")
     args = ap.parse_args()
-    hosts = set(args.hosts)
+
+    setup_logging(args.log_file, args.verbose)
+    hosts = {SOURCES[s]["host"] for s in args.sources}
     robots = RobotsCache()  # one cache for seeding and crawling, so robots.txt is fetched once per host
+    logger.info(f"sources: {', '.join(args.sources)}  (hosts: {', '.join(sorted(hosts))})")
+    for h in sorted(hosts):
+        logger.info(f"robots.txt {h}: {robots.status(f'https://{h}/')}, delay {robots.crawl_delay(f'https://{h}/'):.1f}s")
+
+    if args.clean:
+        logger.info(f"--clean: removed {clean_raw_dir()} files from an earlier crawl in {RAW_DIR}/")
 
     if args.seeds:
         seeds = [u for u in (normalize_url(s) for s in args.seeds) if u]
     else:
-        seeds = [u for h in hosts for u in sitemap_seeds(h, robots, hosts)]
+        seeds = []
+        for name in args.sources:
+            src = SOURCES[name]
+            seeds += [u for u in (normalize_url(s) for s in src["seeds"]) if u]
+            seeds += sitemap_seeds(src["host"], robots, hosts)
+        seeds = list(dict.fromkeys(seeds))  # drop repeats, keep order
     # Add seeds best-priority-first, so the per-host cap is spent on health topics, not encyclopedia pages.
     from crawler.frontier import default_priority
     seeds.sort(key=default_priority)
-    print(f"{len(seeds)} in-scope seed URLs; crawling until {args.max_pages} pages are saved "
-          f"(>= {MIN_DELAY:.0f}s between requests to a host)\n")
+    logger.info(f"{len(seeds)} seed URLs; crawling until {args.max_pages} pages are saved "
+                f"(>= {MIN_DELAY:.0f}s between requests to a host). Full log: {args.log_file}")
 
-    s = crawl(seeds, hosts, args.max_pages, args.max_depth, args.max_per_host, args.threshold, robots)
+    s = crawl(seeds, hosts, args.max_pages, args.max_depth, args.max_per_host, args.threshold, robots,
+              progress_every=args.progress_every)
 
-    print("\n================ SUMMARY ================")
-    print(f"URLs handed out by frontier : {s['fetches']}  in {s['seconds']:.0f}s")
-    print(f"Pages saved                 : {s['outcomes']['saved']}  -> {RAW_DIR}/")
-    for k, v in sorted(s["outcomes"].items()):
-        if k != "saved":
-            print(f"  {k:<60} {v}")
-    print(f"Duplicates found            : {len(s['duplicates'])} "
-          f"(exact {sum(d['kind'] == 'exact' for d in s['duplicates'])}, "
-          f"near {sum(d['kind'] == 'near' for d in s['duplicates'])}; "
-          f"{s['comparisons']} Jaccard comparisons)")
-    print(f"Link graph                  : {s['graph_nodes']} pages, {s['graph_edges']} in-scope links -> {LINKS_PATH}")
-    print(f"Frontier                    : {s['frontier_left']} URLs still queued; rejected {s['frontier_rejected']}")
+    dups = s["duplicates"]
+    lines = [
+        "================ SUMMARY ================",
+        f"Stopped because             : {s['stop_reason']}",
+        f"URLs handed out by frontier : {s['fetches']}  in {fmt_secs(s['seconds'])}",
+        f"Pages saved                 : {s['outcomes']['saved']}  -> {RAW_DIR}/",
+        *[f"  from {h:<25} {s['saved_per_host'].get(h, 0)}" for h in sorted(hosts)],
+        "Not saved:",
+        *[f"  {k:<70} {v}" for k, v in sorted(s["outcomes"].items()) if k != "saved"],
+        f"Duplicates found            : {len(dups)} (exact {sum(d['kind'] == 'exact' for d in dups)}, "
+        f"near {sum(d['kind'] == 'near' for d in dups)}; {s['comparisons']} Jaccard comparisons)",
+        f"Link graph                  : {s['graph_nodes']} pages, {s['graph_edges']} in-scope links -> {LINKS_PATH}",
+        f"Frontier                    : {s['frontier_left']} URLs still queued; rejected {s['frontier_rejected']}",
+        f"Logs                        : {args.log_file} (text), {LOG_PATH} (one JSON line per URL)",
+    ]
+    for line in lines:
+        logger.info(line)
+
+    with open(SUMMARY_PATH, "w", encoding="utf-8") as f:
+        json.dump({"args": vars(args), **s, "outcomes": dict(s["outcomes"])}, f, indent=1)
+    logger.info(f"Summary saved to {SUMMARY_PATH}")
 
 
 if __name__ == "__main__":

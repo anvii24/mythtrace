@@ -1,0 +1,41 @@
+{
+ "args": {
+  "sources": [
+   "medlineplus",
+   "mohfw"
+  ],
+  "seeds": null,
+  "max_pages": 1000,
+  "max_depth": 3,
+  "max_per_host": 1500,
+  "threshold": 0.9,
+  "log_file": "data\\crawl.log",
+  "progress_every": 25,
+  "verbose": false,
+  "clean": true
+ },
+ "stop_reason": "reached --max-pages 1000",
+ "saved_per_host": {
+  "medlineplus.gov": 1000
+ },
+ "fetches": 1075,
+ "outcomes": {
+  "skipped: too little text (28 words; links followed)": 1,
+  "skipped: too little text (0 words; links followed)": 70,
+  "saved": 1000,
+  "skipped: too little text (12 words; links followed)": 1,
+  "skipped: too little text (26 words; links followed)": 1,
+  "skipped: too little text (33 words; links followed)": 1,
+  "skipped: too little text (3 words; links followed)": 1
+ },
+ "duplicates": [],
+ "comparisons": 49364,
+ "frontier_left": 426,
+ "frontier_rejected": {
+  "host page cap": 10638,
+  "already seen": 23336
+ },
+ "graph_nodes": 1075,
+ "graph_edges": 30491,
+ "seconds": 1642.4504194259644
+}
