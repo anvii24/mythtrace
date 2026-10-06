@@ -21,6 +21,14 @@ Net score (IIR ch. 7, "static quality scores"):
   So alpha has the same meaning for every query and both modes: alpha = 0.3 means a fully trusted,
   well-linked page (g = 1) can overtake a page with up to 30% more relevance but g = 0.
 
+  Normalising over UNFLAGGED chunks only: with the "jaccard" defense on, the max is taken over the
+  chunks the content check did not flag. Otherwise a term-stuffed poison chunk, which has by far the
+  highest raw score (e.g. 28.4 vs 6.6 for the best real chunk), would set the divisor even after
+  being flagged, squash every real chunk's relevance to ~0.2, and let g(d) alone decide their order.
+  A flagged chunk's relevance_norm is capped at 1.0, i.e. it is treated as at most as relevant as the
+  best unflagged chunk; uncapped it would be 4.3 and still win after the penalty. If every matching
+  chunk is flagged, the max over all of them is used, as before.
+
 Defenses are named and can be combined (`defenses` = a set/list of names, a comma string, or True/False):
   "quality" - add alpha * g(d) to the net score (above). Flags "untrusted_host" (no extra penalty:
               the low g(d) already is the penalty).
@@ -83,18 +91,24 @@ def search(query: str, k: int = 5, mode: str = "bm25", defenses=True,
     if not acc:
         return []
 
-    max_raw = max(a["score"] for a in acc.values())
     q_set = set(terms)
+    # Content check first, so the normaliser can skip the chunks it flags (see docstring).
+    checks = {cid: content.content_flags(q_set, chunks[cid], stem, jaccard_threshold, repetition_threshold)
+              for cid in acc} if use_jaccard else {}
+    unflagged = [a["score"] for cid, a in acc.items() if not (checks and checks[cid]["flags"])]
+    max_raw = max(unflagged) if unflagged else max(a["score"] for a in acc.values())
     net: dict = {}
     for cid, a in acc.items():
+        check = checks.get(cid)
         rel = a["score"] / max_raw
+        if check and check["flags"]:
+            rel = min(rel, 1.0)  # a flagged chunk can't out-score the best unflagged one on relevance
         c = chunks[cid]
         q = quality.quality(c["url"], c["host"], corpus)
         g_term = alpha * q["g"] if use_quality else 0.0
         flags = ["untrusted_host"] if use_quality and not q["trusted"] else []
-        check, pen = None, 0.0
-        if use_jaccard:
-            check = content.content_flags(q_set, c, stem, jaccard_threshold, repetition_threshold)
+        pen = 0.0
+        if check:
             flags += check["flags"]
             pen = penalty * len(check["flags"])
         net[cid] = {"score": rel + g_term - pen, "relevance_norm": rel, "g_term": g_term, "quality": q,

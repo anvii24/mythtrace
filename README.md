@@ -184,10 +184,17 @@ Implemented and run on the real corpus (the IR parts are written from scratch, w
   keyword-stuffing (repetition ratio) flags. Every score has a full breakdown in the CLI.
 - **Crowding out:** for each question the experiment also counts how many of the clean corpus's
   top-5 chunks are pushed out once poison is injected. bm25 none: 2.31 per page on average (3.00
-  external, 1.62 insider), pushed out by poison taking the slots. bm25+all: 1.06. Side effect: a demoted
-  poison chunk still has the top raw BM25 score, so it sets the divisor in relevance normalisation and
-  squashes every clean chunk's relevance (e.g. 1.0 -> 0.22). Then g(d) reorders the clean chunks, and some
-  are pushed out with no poison in the top 5 (P01, P05, P09).
+  external, 1.62 insider), pushed out by poison taking the slots. bm25+all: 0.94.
+- **Normalisation fix:** relevance is now normalised by the best chunk the content check did NOT flag,
+  and flagged chunks are capped at 1.0. Before the fix, a demoted poison chunk still had the top raw BM25
+  score, so it set the divisor and squashed every clean chunk's relevance (e.g. 1.0 -> 0.22). g(d) then
+  reordered the clean chunks, and some were pushed out with no poison in the top 5. bm25+all before ->
+  after: own poison in the top 5 6/16 -> 5/16 (P03 drops from rank 2 to 86), clean chunks pushed out
+  1.06 -> 0.94 per page. But poison chunks from ANY page in the top 5 went up, 0.81 -> 0.94: a poison
+  page that isn't flagged for this question now competes on normal relevance. The squashing used to
+  hide those pages by accident. Pre-fix results: `eval/results/attack_results_before_norm_fix.csv`
+  (this file also has the answer-level columns). On the clean corpus the top 5 changed for 3/316 test
+  queries.
 - **Haiku 4.5 vs Sonnet 5.5** (bm25 none, same chunks): Haiku cites the poison on 12/16 pages
   (external 8/8, insider 4/8) vs Sonnet's 16/16. It mostly answers insider questions from the real
   chunks without mentioning the poison, and sometimes rejects a claim with outside knowledge the
@@ -202,8 +209,8 @@ Implemented and run on the real corpus (the IR parts are written from scratch, w
   development pages and P03-P16 held out:
   - Without defenses the poison chunk is in the top 5 for **16/16** pages (BM25 and tf-idf).
   - g(d) alone (alpha 0.3) blocks none. At alpha 1.0 it blocks every external page but no insider.
-  - The Jaccard / stuffing check cuts that to **6/16**: 1/8 external pages and 5/8 insider pages still
-    get through. Lightly stuffed insider pages pass under the thresholds.
+  - The Jaccard / stuffing check cuts that to **5/16** (0/8 external, 5/8 insider; it was 6/16 before
+    the normalisation fix below). Lightly stuffed insider pages pass under the thresholds.
   - The LLM usually cites the poison only to reject it. Hand labels of 64 answers (bm25 none and
     bm25+all, 2 samples each; `eval/label_rates.py`): **0 endorse the false claim**, 46 refute it and
     18 ignore it. 11 of those labels were made on an earlier text of the same answer (see AI_USE.md,
