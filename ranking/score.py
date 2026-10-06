@@ -155,7 +155,7 @@ def top_k(acc: dict, k: int) -> list[tuple[float, str]]:
 
 def search(query: str, k: int = 5, mode: str = "bm25", defenses: bool = True,
            stem: bool = True) -> list[dict]:
-    """Shared retriever interface. `defenses` is accepted but not applied yet (g(d) / Jaccard come next)."""
+    """Raw relevance only (no g(d)); `defenses` is ignored. The shared retriever is ranking.search.search."""
     st = get_state(stem)
     terms = preprocess(query, stem=stem)
     if mode == "bm25":
