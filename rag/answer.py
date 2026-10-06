@@ -97,10 +97,18 @@ def _cache_key(request: dict) -> str:
     return hashlib.sha256(json.dumps(request, sort_keys=True).encode("utf-8")).hexdigest()
 
 
-def call_llm(system: str, prompt: str, use_cache: bool = True) -> dict:
-    """Return {"text", "stop_reason", "usage", "cached"} for this exact request."""
+def call_llm(system: str, prompt: str, use_cache: bool = True, sample: int = 0) -> dict:
+    """Return {"text", "stop_reason", "usage", "cached"} for this exact request.
+
+    sample: which independent sample of the same request this is. We can't set temperature, so the
+    model's answers vary run to run; sample=1, 2, ... gets its own cache entry, so an experiment can
+    draw several answers per prompt and still be reproducible. sample=0 (default) keeps the original
+    cache key, so existing cache entries stay valid.
+    """
     request = {"model": MODEL, "effort": EFFORT, "max_tokens": MAX_TOKENS,
                "system": system, "prompt": prompt}
+    if sample:
+        request["sample"] = sample
     path = CACHE_DIR / f"{_cache_key(request)}.json"
     if use_cache and path.exists():
         entry = json.loads(path.read_text(encoding="utf-8"))
@@ -171,7 +179,7 @@ def parse_citations(text: str, source_map: dict[int, str]) -> tuple[list[str], l
 # Public interface (CLAUDE.md)
 # ---------------------------------------------------------------------------------------------
 
-def answer(question: str, use_cache: bool = True, **retriever_kwargs) -> dict:
+def answer(question: str, use_cache: bool = True, sample: int = 0, **retriever_kwargs) -> dict:
     """Retrieve, prompt, generate, check citations.
 
     Returns the CLAUDE.md fields {"answer", "citations", "retrieved"} plus extras for evaluation:
@@ -182,7 +190,7 @@ def answer(question: str, use_cache: bool = True, **retriever_kwargs) -> dict:
     prompt, source_map = build_prompt(question, retrieved)
 
     if retrieved:
-        llm = call_llm(SYSTEM_PROMPT, prompt, use_cache=use_cache)
+        llm = call_llm(SYSTEM_PROMPT, prompt, use_cache=use_cache, sample=sample)
     else:  # nothing matched at all: no point asking the model
         llm = {"text": ABSTAIN, "stop_reason": "no_retrieval", "usage": None, "cached": False}
 

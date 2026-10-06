@@ -50,6 +50,8 @@ def doc_id_for(url: str) -> str:
 def load_poison_pages(path: str = POISON_PAGES_PATH) -> list[dict]:
     with open(path, encoding="utf-8") as f:
         pages = json.load(f)
+    if not isinstance(pages, list) or not all(isinstance(p, dict) for p in pages):
+        raise ValueError(f"{path} must be ONE flat JSON list of page objects (no nested lists)")
     seen = set()
     for p in pages:
         kind = p.get("attack_type")
