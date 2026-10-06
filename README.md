@@ -61,8 +61,11 @@ python -m crawler.crawl --sources medlineplus mohfw --max-pages 1000 --clean
 Outputs: `data/raw/<doc_id>.json` (one per page) plus the gzipped HTML, `data/links.json` (link graph),
 `data/crawl_log.jsonl` (one JSON line per URL), `data/crawl.log` (text log), and `data/crawl_summary.json`.
 
-Poisoned pages used in the attack experiments are synthetic, are clearly labelled `is_poison=true`,
-are stored locally only, and are never published.
+Poisoned pages used in the attack experiments are synthetic misinformation written for a security
+experiment. The pages in `attack/poison_pages.json` are committed so results are reproducible; once
+injected, every poison chunk is clearly labelled `is_poison=true`. They are never used or presented as
+real health advice. The generated poisoned data files (poisoned chunks, index and link graph) are
+gitignored.
 
 ## What works
 
