@@ -68,7 +68,7 @@ data/      small sample only committed; full crawl is gitignored and reproducibl
 - Minimum 1 second delay between requests to the same host; identify with a clear User-Agent
   (e.g. "TrustRAG-CSD358-student-project").
 - Collect no personal data. Credit every source in the README.
-- Poisoned pages are synthetic, stored locally only, never published.
+- Poison pages in attack/poison_pages.json are synthetic misinformation for a security experiment, committed so results are reproducible, clearly labelled in the README, and never used or presented as real health advice. Generated poisoned data files stay gitignored.
 
 ## Secrets and git
 - LLM API key lives in `.env` (gitignored). Never print it or commit it.
