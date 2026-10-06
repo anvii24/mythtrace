@@ -4,3 +4,4 @@
 - 2026-10-06: Claude Code wrote rag/test_llm.py, a smoke test that loads LLM_API_KEY from .env and sends one prompt to the Claude API.
 - 2026-10-06: Claude Code wrote crawler/urls.py (URL normalisation) and crawler/robots.py (robots.txt fetch/cache/save, strict refuse-on-failure policy).
 - 2026-10-06: Claude Code wrote crawler/frontier.py (Mercator frontier: priority front queues, per-host back queues, delay heap, spider-trap limits) and crawler/test_frontier.py (simulated crawl on a fake clock).
+- 2026-10-06: Claude Code wrote crawler/crawl.py (crawl loop, BeautifulSoup extraction with link-density boilerplate filter, SHA-1 content-seen check, 4-word shingles + Jaccard near-duplicate detection, link graph) and ran a 20-page MedlinePlus test crawl.

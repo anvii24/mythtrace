@@ -4,3 +4,5 @@ data/chunks.jsonl
 data/index/
 __pycache__/
 .venv/
+data/links.json
+data/crawl_log.jsonl
