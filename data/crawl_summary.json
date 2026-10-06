@@ -37,5 +37,12 @@
  },
  "graph_nodes": 1075,
  "graph_edges": 30491,
- "seconds": 1642.4504194259644
+ "seconds": 1642.4504194259644,
+ "reparse": {
+  "pages": 1000,
+  "bodies_changed": 563,
+  "pages_under_min_words": 0,
+  "duplicates": [],
+  "boilerplate_lines_over_20pct_after": {}
+ }
 }

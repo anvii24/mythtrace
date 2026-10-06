@@ -161,6 +161,10 @@ def extract(html: bytes, url: str) -> dict:
     # Main content: drop non-content tags, then use <article>/<main> if the page has one.
     for tag in soup(["script", "style", "noscript", "nav", "header", "footer", "form", "iframe", "svg", "button"]):
         tag.decompose()
+    # MedlinePlus placeholder for an empty link box: <li class="noinfo-subcat">No links available</li>
+    # (found on 56% of pages). Removing it leaves its section ("See, Play and Learn") empty, so it is dropped.
+    for tag in soup.select(".noinfo-subcat"):
+        tag.decompose()
     root = soup.find("article") or soup.find("main") or soup.body or soup
 
     # Walk headings and text blocks in document order; each heading starts a new section.
