@@ -1,0 +1,417 @@
+{
+ "Q01": {
+  "question": "What causes asthma?",
+  "expected": [
+   {
+    "topic": "Asthma",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "42ea855e3057",
+     "title": "Asthma",
+     "url": "https://medlineplus.gov/asthma.html",
+     "n_chunks": 6
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "42ea855e3057"
+  ]
+ },
+ "Q02": {
+  "question": "What are the symptoms of type 2 diabetes?",
+  "expected": [
+   {
+    "topic": "Diabetes Type 2",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "43a07ca6d307",
+     "title": "Diabetes Type 2",
+     "url": "https://medlineplus.gov/diabetestype2.html",
+     "n_chunks": 7
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "43a07ca6d307"
+  ]
+ },
+ "Q03": {
+  "question": "Can high blood pressure affect your kidneys?",
+  "expected": [
+   {
+    "topic": "High Blood Pressure",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "8ac1f0abe54b",
+     "title": "High Blood Pressure",
+     "url": "https://medlineplus.gov/highbloodpressure.html",
+     "n_chunks": 4
+    }
+   },
+   {
+    "topic": "Kidney Diseases",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "d64ee5d232ac",
+     "title": "Kidney Diseases",
+     "url": "https://medlineplus.gov/kidneydiseases.html",
+     "n_chunks": 1
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "8ac1f0abe54b",
+   "d64ee5d232ac"
+  ]
+ },
+ "Q04": {
+  "question": "What are the warning signs of a heart attack?",
+  "expected": [
+   {
+    "topic": "Heart Attack",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "a06b777f60e0",
+     "title": "Heart Attack",
+     "url": "https://medlineplus.gov/heartattack.html",
+     "n_chunks": 4
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "a06b777f60e0"
+  ]
+ },
+ "Q05": {
+  "question": "How does the flu spread from person to person?",
+  "expected": [
+   {
+    "topic": "Influenza",
+    "matched_by": "alias -> 'Flu'",
+    "page": {
+     "doc_id": "af56789fded4",
+     "title": "Flu",
+     "url": "https://medlineplus.gov/flu.html",
+     "n_chunks": 7
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "af56789fded4"
+  ]
+ },
+ "Q06": {
+  "question": "How can I tell the difference between a cold and the flu?",
+  "expected": [
+   {
+    "topic": "Influenza",
+    "matched_by": "alias -> 'Flu'",
+    "page": {
+     "doc_id": "af56789fded4",
+     "title": "Flu",
+     "url": "https://medlineplus.gov/flu.html",
+     "n_chunks": 7
+    }
+   },
+   {
+    "topic": "Common Cold",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "ab7c40da7c00",
+     "title": "Common Cold",
+     "url": "https://medlineplus.gov/commoncold.html",
+     "n_chunks": 5
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "ab7c40da7c00",
+   "af56789fded4"
+  ]
+ },
+ "Q07": {
+  "question": "What are the symptoms of a urinary tract infection?",
+  "expected": [
+   {
+    "topic": "Urinary Tract Infections",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "9611a31c70cc",
+     "title": "Urinary Tract Infections",
+     "url": "https://medlineplus.gov/urinarytractinfections.html",
+     "n_chunks": 1
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "9611a31c70cc"
+  ]
+ },
+ "Q08": {
+  "question": "How do doctors diagnose pneumonia?",
+  "expected": [
+   {
+    "topic": "Pneumonia",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "46d56f53c424",
+     "title": "Pneumonia",
+     "url": "https://medlineplus.gov/pneumonia.html",
+     "n_chunks": 7
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "46d56f53c424"
+  ]
+ },
+ "Q09": {
+  "question": "What foods should I avoid while I'm pregnant?",
+  "expected": [
+   {
+    "topic": "Pregnancy",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "fde31c7b4af9",
+     "title": "Pregnancy",
+     "url": "https://medlineplus.gov/pregnancy.html",
+     "n_chunks": 1
+    }
+   },
+   {
+    "topic": "Nutrition during pregnancy",
+    "matched_by": "alias -> 'Pregnancy and Nutrition'",
+    "page": {
+     "doc_id": "5d160208c6fe",
+     "title": "Pregnancy and Nutrition",
+     "url": "https://medlineplus.gov/pregnancyandnutrition.html",
+     "n_chunks": 5
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "5d160208c6fe",
+   "fde31c7b4af9"
+  ]
+ },
+ "Q10": {
+  "question": "What is gestational diabetes and how can it affect my baby?",
+  "expected": [
+   {
+    "topic": "Gestational Diabetes",
+    "matched_by": "SUBSTITUTE (extra run) -> 'Diabetes and Pregnancy'",
+    "page": {
+     "doc_id": "8d56f4678148",
+     "title": "Diabetes and Pregnancy",
+     "url": "https://medlineplus.gov/diabetesandpregnancy.html",
+     "n_chunks": 6
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "8d56f4678148"
+  ]
+ },
+ "Q11": {
+  "question": "What are the signs of depression?",
+  "expected": [
+   {
+    "topic": "Depression",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "47d4d7c8107f",
+     "title": "Depression",
+     "url": "https://medlineplus.gov/depression.html",
+     "n_chunks": 8
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "47d4d7c8107f"
+  ]
+ },
+ "Q12": {
+  "question": "How is an anxiety disorder treated?",
+  "expected": [
+   {
+    "topic": "Anxiety",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "2d3ceb152087",
+     "title": "Anxiety",
+     "url": "https://medlineplus.gov/anxiety.html",
+     "n_chunks": 7
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "2d3ceb152087"
+  ]
+ },
+ "Q13": {
+  "question": "What is the difference between LDL and HDL cholesterol?",
+  "expected": [
+   {
+    "topic": "Cholesterol",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "8fbf8fd6227a",
+     "title": "Cholesterol",
+     "url": "https://medlineplus.gov/cholesterol.html",
+     "n_chunks": 7
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "8fbf8fd6227a"
+  ]
+ },
+ "Q14": {
+  "question": "What are the risk factors for having a stroke?",
+  "expected": [
+   {
+    "topic": "Stroke",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "aa6e9a4c8e1b",
+     "title": "Stroke",
+     "url": "https://medlineplus.gov/stroke.html",
+     "n_chunks": 6
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "aa6e9a4c8e1b"
+  ]
+ },
+ "Q15": {
+  "question": "Why do people with diabetes need to check their feet every day?",
+  "expected": [
+   {
+    "topic": "Diabetic Foot",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "5cf6f5819392",
+     "title": "Diabetic Foot",
+     "url": "https://medlineplus.gov/diabeticfoot.html",
+     "n_chunks": 4
+    }
+   },
+   {
+    "topic": "Diabetes Complications",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "60742e8b0b67",
+     "title": "Diabetes Complications",
+     "url": "https://medlineplus.gov/diabetescomplications.html",
+     "n_chunks": 3
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "5cf6f5819392",
+   "60742e8b0b67"
+  ]
+ },
+ "Q16": {
+  "question": "Can untreated sleep apnea lead to heart problems?",
+  "expected": [
+   {
+    "topic": "Sleep Apnea",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "2831f40f29f8",
+     "title": "Sleep Apnea",
+     "url": "https://medlineplus.gov/sleepapnea.html",
+     "n_chunks": 1
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "2831f40f29f8"
+  ]
+ },
+ "Q17": {
+  "question": "What is the difference between type 1 and type 2 diabetes?",
+  "expected": [
+   {
+    "topic": "Diabetes Type 1",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "056d060c4ba5",
+     "title": "Diabetes Type 1",
+     "url": "https://medlineplus.gov/diabetestype1.html",
+     "n_chunks": 6
+    }
+   },
+   {
+    "topic": "Diabetes Type 2",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "43a07ca6d307",
+     "title": "Diabetes Type 2",
+     "url": "https://medlineplus.gov/diabetestype2.html",
+     "n_chunks": 7
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "056d060c4ba5",
+   "43a07ca6d307"
+  ]
+ },
+ "Q18": {
+  "question": "How is hepatitis B spread and can it be prevented?",
+  "expected": [
+   {
+    "topic": "Hepatitis B",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "8f5e8a5605fe",
+     "title": "Hepatitis B",
+     "url": "https://medlineplus.gov/hepatitisb.html",
+     "n_chunks": 9
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "8f5e8a5605fe"
+  ]
+ },
+ "Q19": {
+  "question": "What triggers a migraine?",
+  "expected": [
+   {
+    "topic": "Migraine",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "06a5ea349683",
+     "title": "Migraine",
+     "url": "https://medlineplus.gov/migraine.html",
+     "n_chunks": 7
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "06a5ea349683"
+  ]
+ },
+ "Q20": {
+  "question": "What are the symptoms of anemia?",
+  "expected": [
+   {
+    "topic": "Anemia",
+    "matched_by": "exact title",
+    "page": {
+     "doc_id": "68098d7f4268",
+     "title": "Anemia",
+     "url": "https://medlineplus.gov/anemia.html",
+     "n_chunks": 1
+    }
+   }
+  ],
+  "relevant_doc_ids": [
+   "68098d7f4268"
+  ]
+ }
+}

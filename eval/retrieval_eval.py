@@ -24,10 +24,20 @@ Configurations: bm25 / tfidf x stemmed / unstemmed with NO defenses (pure releva
 stemmed with ALL defenses (quality g(d) + Jaccard content check), to check that the defenses, built
 against poisoning, don't hurt normal searches.
 
-Outputs:
-    eval/results/qrels_pages.json        question -> expected topic -> matched page(s)
-    eval/results/retrieval_results.csv   one row per (question, configuration), plus mean rows
+Two runs (both by default; --run main|q10_substitute picks one):
+  main            the qrels as written. Q10's page (Gestational Diabetes) is not in the crawl, so Q10
+                  is skipped. These are the headline numbers.
+  q10_substitute  EXTRA run, decided after the main run: "Diabetes and Pregnancy", the crawled page
+                  that covers gestational diabetes, is accepted as Q10's page, so 20 questions count.
+                  Reported separately because the substitution was not part of the original judgments.
+
+Outputs (main run / extra run):
+    eval/results/qrels_pages.json             / qrels_pages_q10_substitute.json
+        question -> expected topic -> matched page(s)
+    eval/results/retrieval_results.csv        / retrieval_results_q10_substitute.csv
+        one row per (question, configuration), plus mean rows
 """
+import argparse
 import csv
 import json
 import os
@@ -37,13 +47,21 @@ from ranking.search import search
 QUESTIONS_PATH = os.path.join("eval", "questions.csv")
 CHUNKS_PATH = os.path.join("data", "chunks.jsonl")
 RESULTS_DIR = os.path.join("eval", "results")
-QRELS_PATH = os.path.join(RESULTS_DIR, "qrels_pages.json")
-CSV_PATH = os.path.join(RESULTS_DIR, "retrieval_results.csv")
 
 # Teammate's topic name -> crawled page title, only where both name the same MedlinePlus page.
 ALIASES = {
     "influenza": "Flu",                                     # flu.html: "The flu, also called influenza"
     "nutrition during pregnancy": "Pregnancy and Nutrition",  # same topic, words reordered
+}
+# Extra run only: a DIFFERENT page accepted in place of a missing one (see docstring).
+Q10_SUBSTITUTE = {"gestational diabetes": "Diabetes and Pregnancy"}
+
+# run name -> (substitutes, qrels path, results path)
+RUNS = {
+    "main": ({}, os.path.join(RESULTS_DIR, "qrels_pages.json"),
+             os.path.join(RESULTS_DIR, "retrieval_results.csv")),
+    "q10_substitute": (Q10_SUBSTITUTE, os.path.join(RESULTS_DIR, "qrels_pages_q10_substitute.json"),
+                       os.path.join(RESULTS_DIR, "retrieval_results_q10_substitute.csv")),
 }
 
 # name -> (mode, stem, defenses)
@@ -74,7 +92,7 @@ def load_pages() -> dict[str, dict]:
     return pages
 
 
-def build_qrels(questions: list[dict], pages: dict[str, dict]) -> dict:
+def build_qrels(questions: list[dict], pages: dict[str, dict], substitutes: dict[str, str]) -> dict:
     """{qid: {"question", "expected": [{"topic", "matched_by", "page" or None}], "relevant_doc_ids"}}"""
     qrels = {}
     for q in questions:
@@ -87,6 +105,10 @@ def build_qrels(questions: list[dict], pages: dict[str, dict]) -> dict:
             elif topic.lower() in ALIASES:
                 alias = ALIASES[topic.lower()]
                 expected.append({"topic": topic, "matched_by": f"alias -> {alias!r}", "page": pages[alias.lower()]})
+            elif topic.lower() in substitutes:
+                sub = substitutes[topic.lower()]
+                expected.append({"topic": topic, "matched_by": f"SUBSTITUTE (extra run) -> {sub!r}",
+                                 "page": pages[sub.lower()]})
             else:
                 expected.append({"topic": topic, "matched_by": "MISSING from corpus", "page": None})
         qrels[q["qid"]] = {"question": q["question"], "expected": expected,
@@ -115,11 +137,20 @@ def print_qrels(qrels: dict) -> None:
 
 
 def main() -> None:
+    parser = argparse.ArgumentParser(description="Page-level retrieval metrics on the clean corpus.")
+    parser.add_argument("--run", choices=[*RUNS, "both"], default="both")
+    args = parser.parse_args()
     os.makedirs(RESULTS_DIR, exist_ok=True)
+    for name in RUNS if args.run == "both" else [args.run]:
+        print(f"\n{'=' * 30} run: {name}" + ("" if name == "main" else "  (EXTRA run, not the headline numbers)"))
+        run(name, *RUNS[name])
+
+
+def run(run_name: str, substitutes: dict[str, str], qrels_path: str, csv_path: str) -> None:
     questions = load_questions()
     pages = load_pages()
-    qrels = build_qrels(questions, pages)
-    with open(QRELS_PATH, "w", encoding="utf-8") as f:
+    qrels = build_qrels(questions, pages, substitutes)
+    with open(qrels_path, "w", encoding="utf-8") as f:
         json.dump(qrels, f, indent=1)
     print_qrels(qrels)
 
@@ -169,13 +200,13 @@ def main() -> None:
           "   <- perfect ranking; expected pages have only " + ", ".join(f"{qid}:{n_rel[qid]}" for qid in kept
                                                                            if n_rel[qid] < 5) + " chunks")
 
-    fields = ["qid", "config", "mode", "stem", "defenses", *METRICS, "first_rel_rank", "n_matching", "top5"]
-    with open(CSV_PATH, "w", newline="", encoding="utf-8") as f:
+    fields = ["run", "qid", "config", "mode", "stem", "defenses", *METRICS, "first_rel_rank", "n_matching", "top5"]
+    with open(csv_path, "w", newline="", encoding="utf-8") as f:
         w = csv.DictWriter(f, fieldnames=fields, extrasaction="ignore")
         w.writeheader()
         for r in rows + means:
-            w.writerow({**r, "top5": " | ".join(r.get("top5", []))})
-    print(f"\nwrote {QRELS_PATH} and {CSV_PATH} ({len(rows)} question rows + {len(means)} mean rows)")
+            w.writerow({**r, "run": run_name, "top5": " | ".join(r.get("top5", []))})
+    print(f"\nwrote {qrels_path} and {csv_path} ({len(rows)} question rows + {len(means)} mean rows)")
 
 
 if __name__ == "__main__":

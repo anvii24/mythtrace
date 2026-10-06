@@ -99,7 +99,7 @@ Notes on each step:
 10. **Label rates:** label `eval/results/answers_to_label.csv` first (guide below). That file was
     made by `python -m eval.export_labels`, which refuses to overwrite it unless you pass `--force`
     (and `--force` erases the labels).
-11. **Retrieval eval:** no API calls; questions come from `eval/questions.csv` (relevance: see
+11. **Retrieval eval:** no API calls; runs the main qrels and the Q10-substitute extra run (`--run` picks one); questions come from `eval/questions.csv` (relevance: see
     Evaluation below).
 12. **Clean answers:** 25 questions, bm25 + all defenses, Sonnet; 25 LLM answers if nothing is
     cached. `--cache-only` re-scores the cached answers.
@@ -116,7 +116,10 @@ counts as relevant if it comes from one of the question's expected pages, and no
 by hand. `eval/retrieval_eval.py` maps each topic name to the crawled page with that title (two names
 needed an alias for the same page: Influenza -> "Flu", Nutrition during pregnancy -> "Pregnancy and
 Nutrition") and saves the mapping in `eval/results/qrels_pages.json`. Q10's page (Gestational
-Diabetes) was not in the crawl, so Q10 is skipped in the retrieval metrics.
+Diabetes) was not in the crawl, so Q10 is skipped in the main retrieval metrics. A separate, clearly
+labelled extra run (`*_q10_substitute.*` files) accepts the crawled "Diabetes and Pregnancy" page,
+which covers gestational diabetes, as Q10's page. That substitution was made after the main run, so
+the main run (19 questions) is the headline.
 
 Consequences to keep in mind: a chunk from a closely related page (e.g. "HDL: The Good Cholesterol"
 for the LDL vs HDL question) counts as not relevant, and P@k is capped when the expected pages have
@@ -147,9 +150,11 @@ Rules:
   label the same file independently if time allows; then compare where they disagree.
 
 The same guide applies to `answers_to_relabel.csv` (11 answers whose text changed after an earlier
-labelling round; their labels replace the matching rows in `answers_to_label.csv`) and to
-`answers_to_label_haiku.csv` (32 Haiku answers, bm25 none). Pass a file with
-`python -m eval.label_rates --path <file>`.
+labelling round) and to `answers_to_label_haiku.csv` (32 Haiku answers, bm25 none). `label_rates`
+merges the relabel file automatically when it reads the default Sonnet file: each relabelled row
+replaces the row with the same (poison_id, config, sample), and the script prints every replacement
+(`--no-relabel` turns this off). For Haiku, run
+`python -m eval.label_rates --path eval/results/answers_to_label_haiku.csv`.
 
 Then run `python -m eval.label_rates` for endorsement rates per config and attack type.
 Unknown labels are rejected and empty ones skipped. To regenerate the file from a new experiment run,
