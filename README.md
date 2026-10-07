@@ -2,6 +2,8 @@
 
 **Health answers you can trust, even when someone plants myths in the corpus.**
 
+**Google drive link(video+report): https://drive.google.com/drive/folders/1i7DuS9xWacbKfAcnNm2T4I1fhGP2c3t_?usp=drive_link**
+
 MythTrace answers health questions using only pages from MedlinePlus, and cites a source for every claim.
 We attack it by planting 16 fake pages based on real health myths. It catches them with IR defenses we
 wrote from scratch: BM25, a source-quality score from PageRank, and checks for query copying and keyword stuffing.
