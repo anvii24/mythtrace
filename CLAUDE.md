@@ -1,4 +1,4 @@
-# TrustRAG — Project brief for Claude Code
+# MythTrace — Project brief for Claude Code
 
 ## What this project is
 CSD358 (Information Retrieval) hackathon, Track 1: Retrieval-Augmented Generation and trustworthy answers.
@@ -66,13 +66,14 @@ data/      small sample only committed; full crawl is gitignored and reproducibl
 ## Data ethics (required by the assignment)
 - Obey robots.txt for every host; skip disallowed URLs.
 - Minimum 1 second delay between requests to the same host; identify with a clear User-Agent
-  (e.g. "TrustRAG-CSD358-student-project").
+  (e.g. "MythTrace-CSD358-student-project").
 - Collect no personal data. Credit every source in the README.
 - Poison pages in attack/poison_pages.json are synthetic misinformation for a security experiment, committed so results are reproducible, clearly labelled in the README, and never used or presented as real health advice. Generated poisoned data files stay gitignored.
 
 ## Secrets and git
 - LLM API key lives in `.env` (gitignored). Never print it or commit it.
 - Commit small, working steps with clear messages, and push regularly.
+- Commit messages: one short line under 60 characters, starting with a verb (e.g. "add BM25 scorer").
 
 ## Must-have before any nice-to-have
 Must: crawler w/ politeness + robots, dedup, chunking + zones, text processing, inverted + positional index,

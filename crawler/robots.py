@@ -25,7 +25,7 @@ import requests
 
 from crawler.urls import get_host, normalize_url
 
-USER_AGENT = "TrustRAG-CSD358-student-project"
+USER_AGENT = "MythTrace-CSD358-student-project"
 MIN_DELAY = 1.0  # seconds between requests to one host, even if robots.txt asks for less
 ROBOTS_DIR = os.path.join("data", "robots")
 

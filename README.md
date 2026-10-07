@@ -1,6 +1,6 @@
-# TrustRAG: trustworthy health answers under a poisoning attack
+# MythTrace: trustworthy health answers under a poisoning attack
 
-TrustRAG is our CSD358 (Information Retrieval) hackathon project for **Track 1: Retrieval-Augmented
+MythTrace is our CSD358 (Information Retrieval) hackathon project for **Track 1: Retrieval-Augmented
 Generation and trustworthy answers**. It answers health questions only from passages retrieved from a
 corpus we crawled ourselves (1,000 MedlinePlus pages, 2,762 chunks), and cites a source for every claim.
 We attack it by injecting 16 synthetic poison pages built on real health myths that circulate in India and
@@ -21,8 +21,8 @@ LLM answers endorse a false claim, and the number of clean top-5 chunks pushed o
 Tested with Python 3.13 (3.10 or newer is needed). Run everything from the repo root.
 
 ```powershell
-git clone https://github.com/anvii24/trustrag.git
-cd trustrag
+git clone https://github.com/anvii24/mythtrace.git
+cd mythtrace
 python -m venv .venv
 .venv\Scripts\Activate.ps1                # prompt now starts with (.venv)
 pip install -r requirements.txt
@@ -200,7 +200,7 @@ Figures (captions in [`eval/figures/README.md`](eval/figures/README.md)):
 - **robots.txt is obeyed** for every host and checked before each URL. Every robots.txt we fetched is saved
   in [`data/robots/`](data/robots/), with screenshots in [`docs/robots/`](docs/robots/).
 - **Politeness:** at least 1 second between requests to the same host (longer if robots.txt sets a
-  Crawl-delay). The User-Agent is `TrustRAG-CSD358-student-project`.
+  Crawl-delay). The User-Agent is `MythTrace-CSD358-student-project`.
 - **Not crawled:** nhp.gov.in, icmr.gov.in and nhm.gov.in, because their robots.txt disallows automated
   access.
 - English pages only. PDFs and images are skipped. **No personal data is collected.**

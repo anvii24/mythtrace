@@ -459,7 +459,7 @@ def clean_raw_dir() -> int:
 
 
 def main():
-    ap = argparse.ArgumentParser(description="TrustRAG crawler")
+    ap = argparse.ArgumentParser(description="MythTrace crawler")
     ap.add_argument("--sources", nargs="+", choices=sorted(SOURCES), default=["medlineplus"],
                     help="which sites to crawl (default: medlineplus)")
     ap.add_argument("--seeds", nargs="*", help="seed URLs (default: each source's start pages + sitemap)")

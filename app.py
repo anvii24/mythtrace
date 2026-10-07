@@ -1,4 +1,4 @@
-"""TrustRAG demo app (Streamlit), for recording the demo video.
+"""MythTrace demo app (Streamlit), for recording the demo video.
 
     streamlit run app.py
 
@@ -34,7 +34,7 @@ from ranking import quality
 from ranking.score import get_state
 from ranking.search import ALPHA, search
 
-st.set_page_config(page_title="TrustRAG", layout="wide")
+st.set_page_config(page_title="MythTrace", layout="wide")
 
 POISON_PAGES_PATH = os.path.join("attack", "poison_pages.json")
 MANIFEST_PATH = os.path.join("data", "poison_manifest.json")
@@ -350,7 +350,7 @@ model = MODELS[model_name]
 # ---------------------------------------------------------------------------------------------
 
 st.markdown(
-    '<div class="app-title">TrustRAG</div>'
+    '<div class="app-title">MythTrace</div>'
     '<div class="app-sub">Health Q&amp;A over MedlinePlus, under a poisoning attack, with IR defenses.</div>'
     '<hr class="rule">'
     + chips([("corpus", corpus), ("mode", mode), ("stemming", "on" if stem else "off"),
