@@ -1,13 +1,13 @@
-# MythTrace: trustworthy health answers under a poisoning attack
+# MythTrace: trusted health answers under a poisoning attack.
 
 MythTrace is our CSD358 (Information Retrieval) hackathon project for **Track 1: Retrieval-Augmented
 Generation and trustworthy answers**. It answers health questions only from passages retrieved from a
 corpus we crawled ourselves (1,000 MedlinePlus pages, 2,762 chunks), and cites a source for every claim.
 We attack it by injecting 16 synthetic poison pages built on real health myths that circulate in India and
 stuffed with query terms. We then defend it with IR techniques written from scratch: BM25 and lnc.ltc
-tf-idf, a PageRank-based source-quality score g(d) in the net score, and Jaccard query-copy /
-keyword-stuffing checks. Without defenses a poison chunk reaches the LLM's top 5 for **16/16** target
-questions. With all defenses that drops to **5/16** (0/8 external, 5/8 insider). **0 of 96** hand-labelled
+tf-idf, a PageRank-based source-quality score g(d) in the net score, and Jaccard query-copy/
+keyword-stuffing checks. Without defenses, a poison chunk reaches the LLM's top 5 for **16/16** target
+questions. With all defenses, that drops to **5/16** (0/8 external, 5/8 insider). **0 of 96** hand-labelled
 LLM answers endorse a false claim, and the number of clean top-5 chunks pushed out by poison falls from
 **2.31 to 0.94** per question.
 
@@ -18,7 +18,7 @@ LLM answers endorse a false claim, and the number of clean top-5 chunks pushed o
 
 ## Quick start (Windows PowerShell)
 
-Tested with Python 3.13 (3.10 or newer is needed). Run everything from the repo root.
+Tested with Python 3.13. Run everything from the repo root.
 
 ```powershell
 git clone https://github.com/anvii24/mythtrace.git
@@ -40,14 +40,14 @@ notepad .env                              # set the line to: LLM_API_KEY=sk-ant-
 python rag\test_llm.py                    # optional smoke test: one short API request
 ```
 
-**The corpus is not in the repo.** Crawled pages, chunks, indexes and the LLM response cache are all
+**The corpus is not in the repo.** Crawled pages, chunks, indexes, and the LLM response cache are all
 gitignored, so you must rebuild the corpus by crawling. The crawl takes **about 25-30 minutes** (1,000
 pages at no more than 1 request per second per host; our run took 27 minutes). The fastest path to the
 demo UI:
 
 ```powershell
 python -m crawler.crawl --sources medlineplus mohfw --max-pages 1000 --clean   # ~25-30 min
-python -m crawler.reparse                 # same cleaning as our corpus (no network)
+python -m crawler.reparse                 # same cleaning as our corpus
 python -m index.chunker
 python -m index.build_index --no-demo
 python -m attack.inject --no-report
@@ -222,7 +222,7 @@ Figures (captions in [`eval/figures/README.md`](eval/figures/README.md)):
 - **Answer labels were done by hand.** Teammates read each answer and labelled it `endorses`, `refutes`,
   `mentions_neutrally` or `ignores`, following a written guide that says not to look at the
   configuration column while judging. Answers whose text changed after
-  a code fix were relabelled (`answers_to_relabel*.csv`). `eval/label_rates.py` merges the relabels in.
+  a code fix were relabeled (`answers_to_relabel*.csv`). `eval/label_rates.py` merges the relabels in.
 - **Reproducibility relies on the LLM cache.** Claude Sonnet 5.5 rejects `temperature=0`, so answers can't
   be made deterministic. Every response is cached in `data/llm_cache/`, keyed by the exact request, and the
   experiments re-score from that cache. The cache is gitignored, so a rerun with a fresh cache makes new API
@@ -249,13 +249,13 @@ Figures (captions in [`eval/figures/README.md`](eval/figures/README.md)):
 
 ## Team
 
-- Name — role
-- Name — role
-- Name — role
+- Anvi Gupta — role
+- Antara Shyam — role
+- Mihir  — role
 
 ## AI use
 
-Much of the code was written with Claude Code (Anthropic), with team members reviewing, testing and
+Much of the code was written with Claude Code (Anthropic), with team members reviewing, testing, and
 explaining each component. [`AI_USE.md`](AI_USE.md) logs what was built with AI help, one line per
-session, for the course's AI-use declaration. The IR methods (indexing, tf-idf, BM25, PageRank, defenses)
+session, for the course's AI-use declaration. The IR methods (indexing, TF-IDF, BM25, PageRank, defenses)
 follow the lectures and are implemented without indexing or ranking libraries.
